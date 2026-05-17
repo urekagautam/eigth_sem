@@ -381,7 +381,7 @@ export default function Notices() {
 
       {/* View Notice History Section */}
       <div className="space-y-6">
-        <div className="flex justify-between items-center gap-4">
+        <div className="sticky top-0 bg-white z-10 py-4 flex justify-between items-center gap-4 border-b border-gray-100">
           <h2 className="text-2xl font-bold text-gray-900">Notice History</h2>
           <div className="flex gap-3 items-center">
             <Button
