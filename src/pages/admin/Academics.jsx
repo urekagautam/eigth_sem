@@ -1,8 +1,1309 @@
+import { useState, useMemo } from "react"
+import {
+  X,
+  Users,
+  GraduationCap,
+  ArrowUpCircle,
+  KeyRound,
+  Plus,
+  RefreshCw,
+} from "lucide-react"
+import Button from "../../components/Button"
+
+const inputClass =
+  "w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+const selectClass =
+  "w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 bg-white"
+const labelClass = "block text-sm font-semibold text-gray-700 mb-2"
+
+const SEMESTER_NAMES = [
+  "First",
+  "Second",
+  "Third",
+  "Fourth",
+  "Fifth",
+  "Sixth",
+  "Seventh",
+  "Eighth",
+]
+const YEAR_NAMES = ["First", "Second", "Third", "Fourth", "Fifth"]
+
+const MAX_SEMESTERS = 8
+const MAX_YEARS = 5
+
+function getLevelLabel(structureType, level) {
+  const names = structureType === "semester" ? SEMESTER_NAMES : YEAR_NAMES
+  const name = names[level - 1] || `Level ${level}`
+  return structureType === "semester" ? `${name} Semester` : `${name} Year`
+}
+
+function getLevelOptions(faculty) {
+  if (!faculty) return []
+  const max = Math.min(
+    faculty.maxLevel,
+    faculty.structureType === "semester" ? MAX_SEMESTERS : MAX_YEARS
+  )
+  return Array.from({ length: max }, (_, i) => {
+    const level = i + 1
+    return { value: level, label: getLevelLabel(faculty.structureType, level) }
+  })
+}
+
+function generatePassword() {
+  return `Tmp@${Math.random().toString(36).slice(2, 10)}`
+}
+
+function generateUsername(firstName, lastName, studentId) {
+  const base = `${firstName}.${lastName}`.toLowerCase().replace(/\s+/g, "")
+  return base || studentId?.toLowerCase() || `user${Date.now()}`
+}
+
+const emptyStudentForm = () => ({
+  firstName: "",
+  middleName: "",
+  lastName: "",
+  studentId: "",
+  mobile: "",
+  email: "",
+  gender: "",
+  bloodGroup: "",
+  citizenshipNo: "",
+  universityRegNo: "",
+  universitySymbolNo: "",
+  guardianName: "",
+  guardianMobile: "",
+  fatherName: "",
+  motherName: "",
+  fatherMobile: "",
+  motherMobile: "",
+  admittedBatch: "",
+  currentLevel: "",
+})
+
+const emptyTeacherForm = () => ({
+  firstName: "",
+  middleName: "",
+  lastName: "",
+  phone: "",
+  address: "",
+  facultyId: "",
+})
+
+// ─── Dummy data (MongoDB-style documents) ───────────────────────────────────
+
+const initialFaculties = [
+  {
+    _id: "fac_bca",
+    code: "BCA",
+    name: "Bachelor of Computer Applications",
+    structureType: "semester",
+    maxLevel: 8,
+    isSystemDefault: true,
+    createdAt: "2024-01-01T00:00:00.000Z",
+  },
+  {
+    _id: "fac_bbm",
+    code: "BBM",
+    name: "Bachelor of Business Management",
+    structureType: "semester",
+    maxLevel: 8,
+    isSystemDefault: true,
+    createdAt: "2024-01-01T00:00:00.000Z",
+  },
+  {
+    _id: "fac_bbs",
+    code: "BBS",
+    name: "Bachelor of Business Studies",
+    structureType: "year",
+    maxLevel: 4,
+    isSystemDefault: true,
+    createdAt: "2024-01-01T00:00:00.000Z",
+  },
+  {
+    _id: "fac_bim",
+    code: "BIM",
+    name: "Bachelor of Information Management",
+    structureType: "semester",
+    maxLevel: 8,
+    isSystemDefault: true,
+    createdAt: "2024-01-01T00:00:00.000Z",
+  },
+  {
+    _id: "fac_bsc_csit",
+    code: "BSC CSIT",
+    name: "BSc Computer Science & Information Technology",
+    structureType: "semester",
+    maxLevel: 8,
+    isSystemDefault: true,
+    createdAt: "2024-01-01T00:00:00.000Z",
+  },
+]
+
+const dummyStudents = [
+  {
+    _id: "stu_001",
+    profile: {
+      firstName: "Sita",
+      middleName: "Kumari",
+      lastName: "Shrestha",
+      gender: "female",
+      bloodGroup: "A+",
+      email: "sita.shrestha@campus.edu.np",
+      mobile: "9801111111",
+      citizenshipNo: "12-34-567890",
+    },
+    studentId: "BCA-2081-001",
+    universityRegNo: "REG-BCA-2081-001",
+    universitySymbolNo: "SYM-001",
+    guardian: {
+      name: "Hari Shrestha",
+      mobile: "9802222222",
+      fatherName: "Hari Shrestha",
+      motherName: "Gita Shrestha",
+      fatherMobile: "9802222222",
+      motherMobile: "9803333333",
+    },
+    admission: {
+      facultyId: "fac_bca",
+      facultyCode: "BCA",
+      facultyName: "Bachelor of Computer Applications",
+      batch: "2081",
+    },
+    enrollment: {
+      status: "active",
+      structureType: "semester",
+      currentLevel: 3,
+      currentLevelLabel: "Third Semester",
+      currentClass: "BCA — Third Semester — Batch 2081",
+    },
+    graduation: null,
+    credentials: {
+      username: "sita.shrestha",
+      hasPassword: true,
+      lastResetAt: "2024-04-10T08:00:00.000Z",
+    },
+    createdAt: "2024-02-01T00:00:00.000Z",
+    updatedAt: "2024-05-01T00:00:00.000Z",
+  },
+  {
+    _id: "stu_002",
+    profile: {
+      firstName: "Rajesh",
+      middleName: "",
+      lastName: "Karki",
+      gender: "male",
+      bloodGroup: "B+",
+      email: "rajesh.karki@campus.edu.np",
+      mobile: "9804444444",
+      citizenshipNo: null,
+    },
+    studentId: "BBS-2079-012",
+    universityRegNo: "REG-BBS-2079-012",
+    universitySymbolNo: "SYM-012",
+    guardian: {
+      name: "Prem Karki",
+      mobile: "9805555555",
+      fatherName: "Prem Karki",
+      motherName: "Sunita Karki",
+      fatherMobile: "9805555555",
+      motherMobile: "9806666666",
+    },
+    admission: {
+      facultyId: "fac_bbs",
+      facultyCode: "BBS",
+      facultyName: "Bachelor of Business Studies",
+      batch: "2079",
+    },
+    enrollment: {
+      status: "graduated",
+      structureType: "year",
+      currentLevel: null,
+      currentLevelLabel: null,
+      currentClass: null,
+    },
+    graduation: {
+      facultyId: "fac_bbs",
+      facultyCode: "BBS",
+      facultyName: "Bachelor of Business Studies",
+      batch: "2079",
+      graduatedAt: "2024-03-15T00:00:00.000Z",
+    },
+    credentials: {
+      username: "rajesh.karki",
+      hasPassword: true,
+      lastResetAt: null,
+    },
+    createdAt: "2020-08-01T00:00:00.000Z",
+    updatedAt: "2024-03-15T00:00:00.000Z",
+  },
+]
+
+const dummyTeachers = [
+  {
+    _id: "tch_001",
+    profile: {
+      firstName: "Anil",
+      middleName: "Prasad",
+      lastName: "Gurung",
+      phone: "9811000001",
+      address: "Kathmandu, Nepal",
+    },
+    facultyId: "fac_bca",
+    facultyCode: "BCA",
+    credentials: {
+      username: "anil.gurung",
+      hasPassword: true,
+      lastResetAt: "2024-04-01T00:00:00.000Z",
+    },
+    createdAt: "2023-06-01T00:00:00.000Z",
+    updatedAt: "2024-04-01T00:00:00.000Z",
+  },
+]
+
+// ─── Component ──────────────────────────────────────────────────────────────
+
 export default function Academics() {
+  const [faculties, setFaculties] = useState(initialFaculties)
+  const [students, setStudents] = useState(dummyStudents)
+  const [teachers, setTeachers] = useState(dummyTeachers)
+
+  const [activeTab, setActiveTab] = useState("students")
+  const [filterFacultyId, setFilterFacultyId] = useState("")
+  const [filterLevel, setFilterLevel] = useState("")
+
+  const [showAddStudent, setShowAddStudent] = useState(false)
+  const [studentForm, setStudentForm] = useState(emptyStudentForm())
+  const [studentFormFacultyId, setStudentFormFacultyId] = useState("")
+  const [newStudentCreds, setNewStudentCreds] = useState(null)
+
+  const [showAddTeacher, setShowAddTeacher] = useState(false)
+  const [teacherForm, setTeacherForm] = useState(emptyTeacherForm())
+  const [newTeacherCreds, setNewTeacherCreds] = useState(null)
+
+  const [showAddFaculty, setShowAddFaculty] = useState(false)
+  const [newFacultyForm, setNewFacultyForm] = useState({
+    code: "",
+    name: "",
+    structureType: "semester",
+    maxLevel: 8,
+  })
+
+  const [resetTarget, setResetTarget] = useState(null)
+  const [resetPasswordValue, setResetPasswordValue] = useState("")
+  const [resetSuccess, setResetSuccess] = useState(false)
+
+  const [upgradeForm, setUpgradeForm] = useState({
+    facultyId: "",
+    fromLevel: "",
+    toLevel: "",
+    markAsGraduated: false,
+  })
+  const [upgradeNotice, setUpgradeNotice] = useState("")
+
+  const filterFaculty = faculties.find((f) => f._id === filterFacultyId)
+  const studentFormFaculty = faculties.find((f) => f._id === studentFormFacultyId)
+  const levelOptions = useMemo(
+    () => getLevelOptions(filterFaculty),
+    [filterFaculty]
+  )
+  const studentFormLevelOptions = useMemo(
+    () => getLevelOptions(studentFormFaculty),
+    [studentFormFaculty]
+  )
+
+  const filteredStudents = students.filter((s) => {
+    if (filterFacultyId && s.admission.facultyId !== filterFacultyId) return false
+    if (filterLevel) {
+      if (s.enrollment.status === "graduated") return false
+      if (String(s.enrollment.currentLevel) !== filterLevel) return false
+    }
+    return true
+  })
+
+  const handleAddFaculty = () => {
+    if (!newFacultyForm.code.trim() || !newFacultyForm.name.trim()) return
+    const max =
+      newFacultyForm.structureType === "semester"
+        ? Math.min(Number(newFacultyForm.maxLevel) || 8, MAX_SEMESTERS)
+        : Math.min(Number(newFacultyForm.maxLevel) || 4, MAX_YEARS)
+
+    const doc = {
+      _id: `fac_${Date.now()}`,
+      code: newFacultyForm.code.trim().toUpperCase(),
+      name: newFacultyForm.name.trim(),
+      structureType: newFacultyForm.structureType,
+      maxLevel: max,
+      isSystemDefault: false,
+      createdAt: new Date().toISOString(),
+    }
+    setFaculties([...faculties, doc])
+    setNewFacultyForm({ code: "", name: "", structureType: "semester", maxLevel: 8 })
+    setShowAddFaculty(false)
+  }
+
+  const handleCreateStudent = () => {
+    const faculty = studentFormFaculty
+    if (!faculty || !studentForm.firstName || !studentForm.lastName || !studentForm.studentId)
+      return
+    if (!studentForm.currentLevel) return
+
+    const level = Number(studentForm.currentLevel)
+    const username = generateUsername(
+      studentForm.firstName,
+      studentForm.lastName,
+      studentForm.studentId
+    )
+    const password = generatePassword()
+    setNewStudentCreds({ username, password })
+
+    const doc = {
+      _id: `stu_${Date.now()}`,
+      profile: {
+        firstName: studentForm.firstName,
+        middleName: studentForm.middleName || "",
+        lastName: studentForm.lastName,
+        gender: studentForm.gender,
+        bloodGroup: studentForm.bloodGroup,
+        email: studentForm.email,
+        mobile: studentForm.mobile,
+        citizenshipNo: studentForm.citizenshipNo || null,
+      },
+      studentId: studentForm.studentId,
+      universityRegNo: studentForm.universityRegNo,
+      universitySymbolNo: studentForm.universitySymbolNo,
+      guardian: {
+        name: studentForm.guardianName,
+        mobile: studentForm.guardianMobile,
+        fatherName: studentForm.fatherName,
+        motherName: studentForm.motherName,
+        fatherMobile: studentForm.fatherMobile,
+        motherMobile: studentForm.motherMobile,
+      },
+      admission: {
+        facultyId: faculty._id,
+        facultyCode: faculty.code,
+        facultyName: faculty.name,
+        batch: studentForm.admittedBatch,
+      },
+      enrollment: {
+        status: "active",
+        structureType: faculty.structureType,
+        currentLevel: level,
+        currentLevelLabel: getLevelLabel(faculty.structureType, level),
+        currentClass: `${faculty.code} — ${getLevelLabel(faculty.structureType, level)} — Batch ${studentForm.admittedBatch}`,
+      },
+      graduation: null,
+      credentials: {
+        username,
+        hasPassword: true,
+        lastResetAt: new Date().toISOString(),
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    setStudents([doc, ...students])
+    setStudentForm(emptyStudentForm())
+    setStudentFormFacultyId("")
+  }
+
+  const handleCreateTeacher = () => {
+    if (!teacherForm.firstName || !teacherForm.lastName) return
+    const faculty = faculties.find((f) => f._id === teacherForm.facultyId)
+    const username = generateUsername(teacherForm.firstName, teacherForm.lastName, "teacher")
+    const password = generatePassword()
+    setNewTeacherCreds({ username, password })
+
+    const doc = {
+      _id: `tch_${Date.now()}`,
+      profile: {
+        firstName: teacherForm.firstName,
+        middleName: teacherForm.middleName || "",
+        lastName: teacherForm.lastName,
+        phone: teacherForm.phone,
+        address: teacherForm.address,
+      },
+      facultyId: faculty?._id || null,
+      facultyCode: faculty?.code || null,
+      credentials: {
+        username,
+        hasPassword: true,
+        lastResetAt: new Date().toISOString(),
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    setTeachers([doc, ...teachers])
+    setTeacherForm(emptyTeacherForm())
+  }
+
+  const handleResetPassword = () => {
+    if (!resetTarget || !resetPasswordValue) return
+    const now = new Date().toISOString()
+    if (resetTarget.type === "student") {
+      setStudents(
+        students.map((s) =>
+          s._id === resetTarget.id
+            ? {
+                ...s,
+                credentials: { ...s.credentials, lastResetAt: now, hasPassword: true },
+                updatedAt: now,
+              }
+            : s
+        )
+      )
+    } else {
+      setTeachers(
+        teachers.map((t) =>
+          t._id === resetTarget.id
+            ? {
+                ...t,
+                credentials: { ...t.credentials, lastResetAt: now, hasPassword: true },
+                updatedAt: now,
+              }
+            : t
+        )
+      )
+    }
+    setResetSuccess(true)
+    setTimeout(() => {
+      setResetTarget(null)
+      setResetPasswordValue("")
+      setResetSuccess(false)
+    }, 2000)
+  }
+
+  const handleBatchUpgrade = () => {
+    setUpgradeNotice("")
+    const faculty = faculties.find((f) => f._id === upgradeForm.facultyId)
+    if (!faculty) {
+      setUpgradeNotice("Please select a faculty.")
+      return
+    }
+
+    if (upgradeForm.markAsGraduated) {
+      setUpgradeNotice(
+        "UI preview: Graduated students are stored as FACULTY + BATCH only (no semester/year). Backend will enforce upgrade order."
+      )
+      return
+    }
+
+    if (!upgradeForm.fromLevel || !upgradeForm.toLevel) {
+      setUpgradeNotice("Select both current and target level.")
+      return
+    }
+
+    const from = Number(upgradeForm.fromLevel)
+    const to = Number(upgradeForm.toLevel)
+    if (to <= from) {
+      setUpgradeNotice("Target level must be higher than current level.")
+      return
+    }
+
+    if (to > from + 1) {
+      setUpgradeNotice(
+        "Upgrade higher semesters/years first. Example: move 5th → 6th before 3rd → 4th. (Backend rule — shown for UI only.)"
+      )
+      return
+    }
+
+    setStudents(
+      students.map((s) => {
+        if (
+          s.admission.facultyId !== faculty._id ||
+          s.enrollment.status !== "active" ||
+          s.enrollment.currentLevel !== from
+        ) {
+          return s
+        }
+        const isFinal = to >= faculty.maxLevel
+        if (isFinal) {
+          return {
+            ...s,
+            enrollment: {
+              status: "graduated",
+              structureType: faculty.structureType,
+              currentLevel: null,
+              currentLevelLabel: null,
+              currentClass: null,
+            },
+            graduation: {
+              facultyId: faculty._id,
+              facultyCode: faculty.code,
+              facultyName: faculty.name,
+              batch: s.admission.batch,
+              graduatedAt: new Date().toISOString(),
+            },
+            updatedAt: new Date().toISOString(),
+          }
+        }
+        return {
+          ...s,
+          enrollment: {
+            ...s.enrollment,
+            currentLevel: to,
+            currentLevelLabel: getLevelLabel(faculty.structureType, to),
+            currentClass: `${faculty.code} — ${getLevelLabel(faculty.structureType, to)} — Batch ${s.admission.batch}`,
+          },
+          updatedAt: new Date().toISOString(),
+        }
+      })
+    )
+    setUpgradeNotice(
+      `Upgraded ${faculty.code} students from ${getLevelLabel(faculty.structureType, from)} to ${getLevelLabel(faculty.structureType, to)}. (Local UI demo.)`
+    )
+  }
+
+  const Field = ({ label, children, optional }) => (
+    <div>
+      <label className={labelClass}>
+        {label}
+        {optional && <span className="font-normal text-gray-500"> (optional)</span>}
+      </label>
+      {children}
+    </div>
+  )
+
+  const tabs = [
+    { id: "students", label: "Students", icon: Users },
+    { id: "teachers", label: "Teachers", icon: GraduationCap },
+    { id: "upgrade", label: "Batch Upgrade", icon: ArrowUpCircle },
+  ]
+
   return (
-    <div className="text-center py-16">
-      <h1 className="text-4xl font-bold text-gray-900 mb-4">Academics</h1>
-      <p className="text-xl text-gray-600">🚧 Under Construction</p>
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex flex-wrap justify-between items-start gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Academics</h1>
+          <p className="text-gray-600 mt-1">
+            Manage faculties, students, teachers, and batch upgrades
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setShowAddFaculty(!showAddFaculty)}>
+          <Plus className="w-4 h-4 inline mr-1" />
+          {showAddFaculty ? "Close" : "Add Faculty"}
+        </Button>
+      </div>
+
+      {/* Add faculty panel */}
+      {showAddFaculty && (
+        <div className="bg-white border-2 border-blue-200 rounded-lg p-6 space-y-4">
+          <h2 className="text-xl font-bold text-gray-900">Add New Faculty</h2>
+          <p className="text-sm text-gray-600">
+            Semester-based: max 8 semesters. Year-based: max 5 years.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Field label="Faculty Code">
+              <input
+                className={inputClass}
+                value={newFacultyForm.code}
+                onChange={(e) => setNewFacultyForm({ ...newFacultyForm, code: e.target.value })}
+                placeholder="e.g. BBA"
+              />
+            </Field>
+            <Field label="Faculty Name">
+              <input
+                className={inputClass}
+                value={newFacultyForm.name}
+                onChange={(e) => setNewFacultyForm({ ...newFacultyForm, name: e.target.value })}
+                placeholder="Full program name"
+              />
+            </Field>
+            <Field label="Structure">
+              <select
+                className={selectClass}
+                value={newFacultyForm.structureType}
+                onChange={(e) =>
+                  setNewFacultyForm({
+                    ...newFacultyForm,
+                    structureType: e.target.value,
+                    maxLevel: e.target.value === "semester" ? 8 : 4,
+                  })
+                }
+              >
+                <option value="semester">Semester based</option>
+                <option value="year">Year based</option>
+              </select>
+            </Field>
+            <Field label="Max levels">
+              <select
+                className={selectClass}
+                value={newFacultyForm.maxLevel}
+                onChange={(e) =>
+                  setNewFacultyForm({ ...newFacultyForm, maxLevel: Number(e.target.value) })
+                }
+              >
+                {Array.from(
+                  {
+                    length:
+                      newFacultyForm.structureType === "semester" ? MAX_SEMESTERS : MAX_YEARS,
+                  },
+                  (_, i) => i + 1
+                ).map((n) => (
+                  <option key={n} value={n}>
+                    {n}{" "}
+                    {newFacultyForm.structureType === "semester" ? "semesters" : "years"}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          <div className="flex justify-end">
+            <Button variant="primary" onClick={handleAddFaculty}>
+              Save Faculty
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Faculty chips */}
+      <div className="flex flex-wrap gap-2">
+        {faculties.map((f) => (
+          <span
+            key={f._id}
+            className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-sm font-medium text-gray-800"
+          >
+            {f.code}
+            <span className="text-gray-500">
+              ({f.structureType === "semester" ? "sem" : "year"} · {f.maxLevel})
+            </span>
+          </span>
+        ))}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-2">
+        {tabs.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setActiveTab(id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${
+              activeTab === id
+                ? "bg-blue-600 text-white"
+                : "text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            <Icon className="w-4 h-4" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ─── Students tab ─── */}
+      {activeTab === "students" && (
+        <div className="space-y-6">
+          <div className="bg-white border border-gray-200 rounded-lg p-6 flex flex-wrap gap-4 items-end">
+            <div className="flex-1 min-w-[180px]">
+              <label className={labelClass}>Faculty</label>
+              <select
+                className={selectClass}
+                value={filterFacultyId}
+                onChange={(e) => {
+                  setFilterFacultyId(e.target.value)
+                  setFilterLevel("")
+                }}
+              >
+                <option value="">All faculties</option>
+                {faculties.map((f) => (
+                  <option key={f._id} value={f._id}>
+                    {f.code} — {f.structureType === "semester" ? "Semester" : "Year"} based
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1 min-w-[180px]">
+              <label className={labelClass}>
+                {filterFaculty?.structureType === "year" ? "Year" : "Semester"}
+              </label>
+              <select
+                className={selectClass}
+                value={filterLevel}
+                onChange={(e) => setFilterLevel(e.target.value)}
+                disabled={!filterFacultyId}
+              >
+                <option value="">All levels</option>
+                {levelOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Button variant="primary" onClick={() => setShowAddStudent(!showAddStudent)}>
+              + Add Student
+            </Button>
+          </div>
+
+          {showAddStudent && (
+            <div className="bg-white border-2 border-blue-200 rounded-lg p-8 space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-gray-900">Create Student Profile</h2>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddStudent(false)
+                    setStudentForm(emptyStudentForm())
+                    setNewStudentCreds(null)
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Field label="Admitted Program (Faculty)">
+                  <select
+                    className={selectClass}
+                    value={studentFormFacultyId}
+                    onChange={(e) => {
+                      setStudentFormFacultyId(e.target.value)
+                      setStudentForm({ ...studentForm, currentLevel: "" })
+                    }}
+                  >
+                    <option value="">Select faculty</option>
+                    {faculties.map((f) => (
+                      <option key={f._id} value={f._id}>
+                        {f.code} — {f.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Current Class">
+                  <select
+                    className={selectClass}
+                    value={studentForm.currentLevel}
+                    onChange={(e) =>
+                      setStudentForm({ ...studentForm, currentLevel: e.target.value })
+                    }
+                    disabled={!studentFormFacultyId}
+                  >
+                    <option value="">Select level</option>
+                    {studentFormLevelOptions.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Admitted Batch">
+                  <input
+                    className={inputClass}
+                    value={studentForm.admittedBatch}
+                    onChange={(e) =>
+                      setStudentForm({ ...studentForm, admittedBatch: e.target.value })
+                    }
+                    placeholder="e.g. 2081"
+                  />
+                </Field>
+                <Field label="Student ID">
+                  <input
+                    className={inputClass}
+                    value={studentForm.studentId}
+                    onChange={(e) =>
+                      setStudentForm({ ...studentForm, studentId: e.target.value })
+                    }
+                    placeholder="BCA-2081-001"
+                  />
+                </Field>
+              </div>
+
+              <h3 className="font-bold text-gray-800 border-b pb-2">Personal details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[
+                  ["First Name", "firstName"],
+                  ["Middle Name", "middleName", true],
+                  ["Last Name", "lastName"],
+                  ["Mobile No.", "mobile"],
+                  ["Email", "email"],
+                  ["Gender", "gender"],
+                  ["Blood Group", "bloodGroup"],
+                  ["Citizenship No.", "citizenshipNo", true],
+                  ["University Reg. No.", "universityRegNo"],
+                  ["University Symbol No.", "universitySymbolNo"],
+                ].map(([lbl, key, opt]) => (
+                  <Field key={key} label={lbl} optional={opt}>
+                    <input
+                      className={inputClass}
+                      value={studentForm[key]}
+                      onChange={(e) =>
+                        setStudentForm({ ...studentForm, [key]: e.target.value })
+                      }
+                    />
+                  </Field>
+                ))}
+              </div>
+
+              <h3 className="font-bold text-gray-800 border-b pb-2">Guardian & parents</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  ["Guardian Name", "guardianName"],
+                  ["Guardian Mobile", "guardianMobile"],
+                  ["Father's Name", "fatherName"],
+                  ["Mother's Name", "motherName"],
+                  ["Father's Mobile", "fatherMobile"],
+                  ["Mother's Mobile", "motherMobile"],
+                ].map(([lbl, key]) => (
+                  <Field key={key} label={lbl}>
+                    <input
+                      className={inputClass}
+                      value={studentForm[key]}
+                      onChange={(e) =>
+                        setStudentForm({ ...studentForm, [key]: e.target.value })
+                      }
+                    />
+                  </Field>
+                ))}
+              </div>
+
+              <div className="rounded-lg bg-gray-50 border border-gray-200 p-4 space-y-3">
+                <p className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                  <KeyRound className="w-4 h-4" /> Login credentials
+                </p>
+               {/*  <p className="text-xs text-gray-500">
+                  Generate username & password after saving profile (demo — API will persist hashed
+                  password).
+                </p> */}
+                {newStudentCreds ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                    <div className="bg-white rounded-lg px-3 py-2 border">
+                      <span className="text-gray-500">Username</span>
+                      <p className="font-mono font-semibold">{newStudentCreds.username}</p>
+                    </div>
+                    <div className="bg-white rounded-lg px-3 py-2 border">
+                      <span className="text-gray-500">Password</span>
+                      <p className="font-mono font-semibold">{newStudentCreds.password}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const u = generateUsername(
+                        studentForm.firstName,
+                        studentForm.lastName,
+                        studentForm.studentId
+                      )
+                      setNewStudentCreds({ username: u, password: generatePassword() })
+                    }}
+                  >
+                    Preview generated credentials
+                  </Button>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setShowAddStudent(false)
+                    setStudentForm(emptyStudentForm())
+                    setNewStudentCreds(null)
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button variant="primary" onClick={handleCreateStudent}>
+                  Save Student
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Student list */}
+          <div className="space-y-4">
+            {filteredStudents.length === 0 ? (
+              <div className="text-center py-12 bg-white border border-gray-200 rounded-lg">
+                <p className="text-gray-600">No students match this filter.</p>
+              </div>
+            ) : (
+              filteredStudents.map((s) => (
+                <div
+                  key={s._id}
+                  className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm"
+                >
+                  <div className="flex flex-wrap justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">
+                        {s.profile.firstName} {s.profile.middleName} {s.profile.lastName}
+                      </h3>
+                      <p className="text-sm text-gray-600">{s.studentId}</p>
+                      {s.enrollment.status === "graduated" ? (
+                        <span className="inline-block mt-2 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">
+                          Graduated — {s.graduation.facultyCode} Batch {s.graduation.batch}
+                        </span>
+                      ) : (
+                        <span className="inline-block mt-2 rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-800">
+                          {s.enrollment.currentClass}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-right text-sm text-gray-600 space-y-1">
+                      <p>@{s.credentials.username}</p>
+                      <p>{s.profile.mobile} · {s.profile.email}</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setResetTarget({
+                            type: "student",
+                            id: s._id,
+                            name: `${s.profile.firstName} ${s.profile.lastName}`,
+                          })
+                          setResetPasswordValue(generatePassword())
+                          setResetSuccess(false)
+                        }}
+                      >
+                        <RefreshCw className="w-3 h-3 inline mr-1" />
+                        Reset password
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Teachers tab ─── */}
+      {activeTab === "teachers" && (
+        <div className="space-y-6">
+          <div className="flex justify-end">
+            <Button variant="primary" onClick={() => setShowAddTeacher(!showAddTeacher)}>
+              + Add Teacher
+            </Button>
+          </div>
+
+          {showAddTeacher && (
+            <div className="bg-white border-2 border-blue-200 rounded-lg p-8 space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-gray-900">Create Teacher Profile</h2>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddTeacher(false)
+                    setTeacherForm(emptyTeacherForm())
+                    setNewTeacherCreds(null)
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Field label="First Name">
+                  <input
+                    className={inputClass}
+                    value={teacherForm.firstName}
+                    onChange={(e) =>
+                      setTeacherForm({ ...teacherForm, firstName: e.target.value })
+                    }
+                  />
+                </Field>
+                <Field label="Middle Name" optional>
+                  <input
+                    className={inputClass}
+                    value={teacherForm.middleName}
+                    onChange={(e) =>
+                      setTeacherForm({ ...teacherForm, middleName: e.target.value })
+                    }
+                  />
+                </Field>
+                <Field label="Last Name">
+                  <input
+                    className={inputClass}
+                    value={teacherForm.lastName}
+                    onChange={(e) =>
+                      setTeacherForm({ ...teacherForm, lastName: e.target.value })
+                    }
+                  />
+                </Field>
+                <Field label="Phone No.">
+                  <input
+                    className={inputClass}
+                    value={teacherForm.phone}
+                    onChange={(e) => setTeacherForm({ ...teacherForm, phone: e.target.value })}
+                  />
+                </Field>
+                <Field label="Faculty (optional)">
+                  <select
+                    className={selectClass}
+                    value={teacherForm.facultyId}
+                    onChange={(e) =>
+                      setTeacherForm({ ...teacherForm, facultyId: e.target.value })
+                    }
+                  >
+                    <option value="">Not linked to faculty</option>
+                    {faculties.map((f) => (
+                      <option key={f._id} value={f._id}>
+                        {f.code}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <div className="md:col-span-2">
+                  <Field label="Address">
+                    <textarea
+                      className={`${inputClass} resize-none`}
+                      rows={2}
+                      value={teacherForm.address}
+                      onChange={(e) =>
+                        setTeacherForm({ ...teacherForm, address: e.target.value })
+                      }
+                    />
+                  </Field>
+                </div>
+              </div>
+
+              <div className="rounded-lg bg-gray-50 border border-gray-200 p-4 space-y-3">
+                <p className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                  <KeyRound className="w-4 h-4" /> Login credentials
+                </p>
+                {newTeacherCreds ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                    <div className="bg-white rounded-lg px-3 py-2 border">
+                      <span className="text-gray-500">Username</span>
+                      <p className="font-mono font-semibold">{newTeacherCreds.username}</p>
+                    </div>
+                    <div className="bg-white rounded-lg px-3 py-2 border">
+                      <span className="text-gray-500">Password</span>
+                      <p className="font-mono font-semibold">{newTeacherCreds.password}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setNewTeacherCreds({
+                        username: generateUsername(
+                          teacherForm.firstName,
+                          teacherForm.lastName,
+                          "t"
+                        ),
+                        password: generatePassword(),
+                      })
+                    }
+                  >
+                    Preview generated credentials
+                  </Button>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <Button variant="secondary" onClick={() => setShowAddTeacher(false)}>
+                  Cancel
+                </Button>
+                <Button variant="primary" onClick={handleCreateTeacher}>
+                  Save Teacher
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {teachers.map((t) => (
+              <div
+                key={t._id}
+                className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm flex flex-wrap justify-between gap-4"
+              >
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">
+                    {t.profile.firstName} {t.profile.middleName} {t.profile.lastName}
+                  </h3>
+                  <p className="text-sm text-gray-600">{t.profile.address}</p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {t.profile.phone}
+                    {t.facultyCode ? ` · ${t.facultyCode}` : ""}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-600">@{t.credentials.username}</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => {
+                      setResetTarget({
+                        type: "teacher",
+                        id: t._id,
+                        name: `${t.profile.firstName} ${t.profile.lastName}`,
+                      })
+                      setResetPasswordValue(generatePassword())
+                      setResetSuccess(false)
+                    }}
+                  >
+                    Reset password
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Batch upgrade tab ─── */}
+      {activeTab === "upgrade" && (
+        <div className="bg-white border border-gray-200 rounded-lg p-8 space-y-6">
+          <h2 className="text-xl font-bold text-gray-900">Semester / Year Batch Upgrade</h2>
+        {/*   <p className="text-sm text-gray-600">
+            Upgrade an entire class to the next semester or year. After final level, students move
+            to graduated status (faculty + batch only).
+          </p> */}
+
+          <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
+             Upgrade an entire class to the next semester or year. After final level, students move
+            to graduated status (faculty + batch only).
+          </div>
+   {/*         Higher levels must be upgraded before lower ones can advance (e.g. 7th before 5th). This
+            rule will be enforced by the backend — this, for ref !!*/}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Field label="Faculty">
+              <select
+                className={selectClass}
+                value={upgradeForm.facultyId}
+                onChange={(e) =>
+                  setUpgradeForm({
+                    ...upgradeForm,
+                    facultyId: e.target.value,
+                    fromLevel: "",
+                    toLevel: "",
+                  })
+                }
+              >
+                <option value="">Select faculty</option>
+                {faculties.map((f) => (
+                  <option key={f._id} value={f._id}>
+                    {f.code} ({f.structureType})
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label=" ">
+              <label className="flex items-center gap-2 mt-8 cursor-pointer text-sm font-medium text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={upgradeForm.markAsGraduated}
+                  onChange={(e) =>
+                    setUpgradeForm({ ...upgradeForm, markAsGraduated: e.target.checked })
+                  }
+                  className="w-4 h-4"
+                />
+                Mark selected batch as graduated (faculty + batch only)
+              </label>
+            </Field>
+            {!upgradeForm.markAsGraduated && (
+              <>
+                <Field
+                  label={
+                    faculties.find((f) => f._id === upgradeForm.facultyId)?.structureType ===
+                    "year"
+                      ? "From year"
+                      : "From semester"
+                  }
+                >
+                  <select
+                    className={selectClass}
+                    value={upgradeForm.fromLevel}
+                    onChange={(e) =>
+                      setUpgradeForm({ ...upgradeForm, fromLevel: e.target.value })
+                    }
+                    disabled={!upgradeForm.facultyId}
+                  >
+                    <option value="">Current level</option>
+                    {getLevelOptions(faculties.find((f) => f._id === upgradeForm.facultyId)).map(
+                      (o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </Field>
+                <Field label="To level">
+                  <select
+                    className={selectClass}
+                    value={upgradeForm.toLevel}
+                    onChange={(e) =>
+                      setUpgradeForm({ ...upgradeForm, toLevel: e.target.value })
+                    }
+                    disabled={!upgradeForm.fromLevel}
+                  >
+                    <option value="">Target level</option>
+                    {getLevelOptions(faculties.find((f) => f._id === upgradeForm.facultyId))
+                      .filter((o) => o.value > Number(upgradeForm.fromLevel))
+                      .map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                  </select>
+                </Field>
+              </>
+            )}
+          </div>
+
+          {upgradeNotice && (
+            <p className="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-800">{upgradeNotice}</p>
+          )}
+
+          <Button variant="primary" onClick={handleBatchUpgrade}>
+            Apply batch upgrade 
+          </Button>
+        </div>
+      )}
+
+      {/* Reset password modal */}
+      {resetTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-bold text-gray-900">Reset password</h3>
+              <button
+                type="button"
+                onClick={() => setResetTarget(null)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-600">
+              Set a new password for <strong>{resetTarget.name}</strong>
+            </p>
+            <Field label="New password">
+              <div className="flex gap-2">
+                <input
+                  className={inputClass}
+                  value={resetPasswordValue}
+                  onChange={(e) => setResetPasswordValue(e.target.value)}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setResetPasswordValue(generatePassword())}
+                >
+                  Generate
+                </Button>
+              </div>
+            </Field>
+            {resetSuccess && (
+              <p className="text-sm text-green-700 font-medium">Password reset recorded (UI demo).</p>
+            )}
+            <div className="flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => setResetTarget(null)}>
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={handleResetPassword}>
+                Confirm reset
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
