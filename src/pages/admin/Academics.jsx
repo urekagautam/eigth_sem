@@ -7,6 +7,10 @@ import {
   KeyRound,
   Plus,
   RefreshCw,
+  BookOpen,
+  Search,
+  ChevronDown,
+  Check,
 } from "lucide-react"
 import Button from "../../components/Button"
 
@@ -56,6 +60,12 @@ function generatePassword() {
 function generateUsername(firstName, lastName, studentId) {
   const base = `${firstName}.${lastName}`.toLowerCase().replace(/\s+/g, "")
   return base || studentId?.toLowerCase() || `user${Date.now()}`
+}
+
+function teacherFullName(teacher) {
+  return [teacher.profile.firstName, teacher.profile.middleName, teacher.profile.lastName]
+    .filter(Boolean)
+    .join(" ")
 }
 
 const emptyStudentForm = () => ({
@@ -258,6 +268,112 @@ const dummyTeachers = [
     createdAt: "2023-06-01T00:00:00.000Z",
     updatedAt: "2024-04-01T00:00:00.000Z",
   },
+  {
+    _id: "tch_002",
+    profile: {
+      firstName: "Sunita",
+      middleName: "",
+      lastName: "Sharma",
+      phone: "9811000002",
+      address: "Lalitpur, Nepal",
+    },
+    facultyId: "fac_bca",
+    facultyCode: "BCA",
+    credentials: {
+      username: "sunita.sharma",
+      hasPassword: true,
+      lastResetAt: "2024-03-20T00:00:00.000Z",
+    },
+    createdAt: "2023-08-01T00:00:00.000Z",
+    updatedAt: "2024-03-20T00:00:00.000Z",
+  },
+  {
+    _id: "tch_003",
+    profile: {
+      firstName: "Ramesh",
+      middleName: "Kumar",
+      lastName: "Adhikari",
+      phone: "9811000003",
+      address: "Bhaktapur, Nepal",
+    },
+    facultyId: "fac_bbs",
+    facultyCode: "BBS",
+    credentials: {
+      username: "ramesh.adhikari",
+      hasPassword: true,
+      lastResetAt: null,
+    },
+    createdAt: "2024-01-10T00:00:00.000Z",
+    updatedAt: "2024-01-10T00:00:00.000Z",
+  },
+]
+
+/** Class subjects — stored per faculty + level; used by exam attendance & teacher assignments */
+const dummySubjects = [
+  {
+    _id: "sub_001",
+    name: "Database Management System",
+    code: "BCA301",
+    facultyId: "fac_bca",
+    facultyCode: "BCA",
+    level: 3,
+    levelLabel: "Third Semester",
+    structureType: "semester",
+    assignedTeacher: {
+      teacherId: "tch_001",
+      fullName: "Anil Prasad Gurung",
+    },
+    createdAt: "2024-01-15T00:00:00.000Z",
+    updatedAt: "2024-04-01T00:00:00.000Z",
+  },
+  {
+    _id: "sub_002",
+    name: "Web Technology",
+    code: "BCA302",
+    facultyId: "fac_bca",
+    facultyCode: "BCA",
+    level: 3,
+    levelLabel: "Third Semester",
+    structureType: "semester",
+    assignedTeacher: {
+      teacherId: "tch_002",
+      fullName: "Sunita Sharma",
+    },
+    createdAt: "2024-01-15T00:00:00.000Z",
+    updatedAt: "2024-04-01T00:00:00.000Z",
+  },
+  {
+    _id: "sub_003",
+    name: "Mathematics III",
+    code: "BCA303",
+    facultyId: "fac_bca",
+    facultyCode: "BCA",
+    level: 3,
+    levelLabel: "Third Semester",
+    structureType: "semester",
+    assignedTeacher: {
+      teacherId: "tch_001",
+      fullName: "Anil Prasad Gurung",
+    },
+    createdAt: "2024-02-01T00:00:00.000Z",
+    updatedAt: "2024-02-01T00:00:00.000Z",
+  },
+  {
+    _id: "sub_004",
+    name: "Business Economics",
+    code: "BBS201",
+    facultyId: "fac_bbs",
+    facultyCode: "BBS",
+    level: 2,
+    levelLabel: "Second Year",
+    structureType: "year",
+    assignedTeacher: {
+      teacherId: "tch_003",
+      fullName: "Ramesh Kumar Adhikari",
+    },
+    createdAt: "2024-03-01T00:00:00.000Z",
+    updatedAt: "2024-03-01T00:00:00.000Z",
+  },
 ]
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -300,7 +416,16 @@ export default function Academics() {
   })
   const [upgradeNotice, setUpgradeNotice] = useState("")
 
+  const [subjects, setSubjects] = useState(dummySubjects)
+  const [subjectFacultyId, setSubjectFacultyId] = useState("")
+  const [subjectLevel, setSubjectLevel] = useState("")
+  const [subjectForm, setSubjectForm] = useState({ name: "", code: "" })
+  const [teacherSearch, setTeacherSearch] = useState({})
+  const [teacherDropdownOpenId, setTeacherDropdownOpenId] = useState(null)
+
   const filterFaculty = faculties.find((f) => f._id === filterFacultyId)
+  const subjectFaculty = faculties.find((f) => f._id === subjectFacultyId)
+  const subjectLevelOptions = useMemo(() => getLevelOptions(subjectFaculty), [subjectFaculty])
   const studentFormFaculty = faculties.find((f) => f._id === studentFormFacultyId)
   const levelOptions = useMemo(
     () => getLevelOptions(filterFaculty),
@@ -310,6 +435,62 @@ export default function Academics() {
     () => getLevelOptions(studentFormFaculty),
     [studentFormFaculty]
   )
+
+  const classSubjects = useMemo(() => {
+    if (!subjectFacultyId || !subjectLevel) return []
+    return subjects.filter(
+      (s) =>
+        s.facultyId === subjectFacultyId && s.level === Number(subjectLevel)
+    )
+  }, [subjects, subjectFacultyId, subjectLevel])
+
+  const getTeacherOtherAssignments = (teacherId, excludeSubjectId) =>
+    subjects
+      .filter(
+        (s) => s.assignedTeacher?.teacherId === teacherId && s._id !== excludeSubjectId
+      )
+      .map((s) => `${s.facultyCode} · ${s.levelLabel} · ${s.name}`)
+
+  const handleAddSubject = () => {
+    const faculty = subjectFaculty
+    if (!faculty || !subjectLevel || !subjectForm.name.trim()) return
+    const level = Number(subjectLevel)
+    const doc = {
+      _id: `sub_${Date.now()}`,
+      name: subjectForm.name.trim(),
+      code: subjectForm.code.trim() || `${faculty.code}${level}${Date.now() % 100}`,
+      facultyId: faculty._id,
+      facultyCode: faculty.code,
+      level,
+      levelLabel: getLevelLabel(faculty.structureType, level),
+      structureType: faculty.structureType,
+      assignedTeacher: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    setSubjects([doc, ...subjects])
+    setSubjectForm({ name: "", code: "" })
+  }
+
+  const handleAssignTeacher = (subjectId, teacherId) => {
+    const teacher = teachers.find((t) => t._id === teacherId)
+    if (!teacher) return
+    setSubjects(
+      subjects.map((s) =>
+        s._id === subjectId
+          ? {
+              ...s,
+              assignedTeacher: {
+                teacherId: teacher._id,
+                fullName: teacherFullName(teacher),
+              },
+              updatedAt: new Date().toISOString(),
+            }
+          : s
+      )
+    )
+    setTeacherSearch((prev) => ({ ...prev, [subjectId]: "" }))
+  }
 
   const filteredStudents = students.filter((s) => {
     if (filterFacultyId && s.admission.facultyId !== filterFacultyId) return false
@@ -567,7 +748,124 @@ export default function Academics() {
     { id: "students", label: "Students", icon: Users },
     { id: "teachers", label: "Teachers", icon: GraduationCap },
     { id: "upgrade", label: "Batch Upgrade", icon: ArrowUpCircle },
+    { id: "subjects", label: "Subjects", icon: BookOpen },
   ]
+
+  const SearchableTeacherSelect = ({ subjectId, currentTeacherId }) => {
+    const isOpen = teacherDropdownOpenId === subjectId
+    const q = teacherSearch[subjectId] ?? ""
+    const selected = teachers.find((t) => t._id === currentTeacherId)
+    const query = q.trim().toLowerCase()
+
+    const filtered = teachers.filter((t) => {
+      if (!query) return true
+      const name = teacherFullName(t).toLowerCase()
+      return (
+        name.includes(query) ||
+        t.facultyCode?.toLowerCase().includes(query) ||
+        t.profile.phone?.includes(query)
+      )
+    })
+
+    const openDropdown = () => {
+      setTeacherDropdownOpenId(subjectId)
+      setTeacherSearch((prev) => ({ ...prev, [subjectId]: prev[subjectId] ?? "" }))
+    }
+
+    const closeDropdown = () => {
+      setTeacherDropdownOpenId(null)
+      setTeacherSearch((prev) => ({ ...prev, [subjectId]: "" }))
+    }
+
+    const pickTeacher = (teacherId) => {
+      handleAssignTeacher(subjectId, teacherId)
+      closeDropdown()
+    }
+
+    return (
+      <div className="relative max-w-md">
+        <button
+          type="button"
+          onClick={() => (isOpen ? closeDropdown() : openDropdown())}
+          className={`${selectClass} flex w-full items-center justify-between gap-2 text-left`}
+          aria-expanded={isOpen}
+          aria-haspopup="listbox"
+        >
+          <span className={selected ? "font-medium text-gray-900" : "text-gray-500"}>
+            {selected ? teacherFullName(selected) : "Select teacher…"}
+          </span>
+          <ChevronDown
+            className={`h-5 w-5 shrink-0 text-gray-500 transition-transform ${isOpen ? "rotate-180" : ""}`}
+          />
+        </button>
+
+        {isOpen && (
+          <>
+            <button
+              type="button"
+              className="fixed inset-0 z-20 cursor-default"
+              aria-label="Close teacher list"
+              onClick={closeDropdown}
+            />
+            <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+              <div className="border-b border-gray-100 p-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    placeholder="Search by name, faculty, phone…"
+                    value={q}
+                    onChange={(e) =>
+                      setTeacherSearch((prev) => ({ ...prev, [subjectId]: e.target.value }))
+                    }
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <ul className="max-h-52 overflow-y-auto py-1" role="listbox">
+                {filtered.length === 0 ? (
+                  <li className="px-4 py-3 text-sm text-gray-500">
+                    No teachers found. Add teachers in the Teachers tab first.
+                  </li>
+                ) : (
+                  filtered.map((t) => {
+                    const isSelected = t._id === currentTeacherId
+                    return (
+                      <li key={t._id}>
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={isSelected}
+                          className={`flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left text-sm transition-colors ${
+                            isSelected ? "bg-blue-50 text-blue-800" : "hover:bg-gray-50"
+                          }`}
+                          onClick={() => pickTeacher(t._id)}
+                        >
+                          <div>
+                            <span className="font-medium">{teacherFullName(t)}</span>
+                            {t.facultyCode && (
+                              <span className="mt-0.5 block text-xs text-gray-500">
+                                {t.facultyCode}
+                                {t.profile.phone ? ` · ${t.profile.phone}` : ""}
+                              </span>
+                            )}
+                          </div>
+                          {isSelected && <Check className="h-4 w-4 shrink-0 text-blue-600" />}
+                        </button>
+                      </li>
+                    )
+                  })
+                )}
+              </ul>
+            </div>
+          </>
+        )}
+      </div>
+    )
+  }
+
 
   return (
     <div className="space-y-8">
@@ -576,7 +874,7 @@ export default function Academics() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Academics</h1>
           <p className="text-gray-600 mt-1">
-            Manage faculties, students, teachers, and batch upgrades
+            Manage faculties, students, teachers, subjects, and batch upgrades
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => setShowAddFaculty(!showAddFaculty)}>
@@ -1254,6 +1552,168 @@ export default function Academics() {
           <Button variant="primary" onClick={handleBatchUpgrade}>
             Apply batch upgrade 
           </Button>
+        </div>
+      )}
+
+      {/* ─── Subjects tab ─── */}
+      {activeTab === "subjects" && (
+        <div className="space-y-6">
+          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 className="mb-4 text-lg font-bold text-gray-900">Class subjects</h2>
+            <p className="mb-4 text-sm text-gray-600">
+              Add subjects per faculty and level. Assign teachers from your teacher list. These
+              subjects are used when marking exam attendance.
+            </p>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Field label="Faculty">
+                <select
+                  className={selectClass}
+                  value={subjectFacultyId}
+                  onChange={(e) => {
+                    setSubjectFacultyId(e.target.value)
+                    setSubjectLevel("")
+                  }}
+                >
+                  <option value="">Select faculty</option>
+                  {faculties.map((f) => (
+                    <option key={f._id} value={f._id}>
+                      {f.code}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field
+                label={
+                  subjectFaculty?.structureType === "year" ? "Year" : "Semester"
+                }
+              >
+                <select
+                  className={selectClass}
+                  value={subjectLevel}
+                  onChange={(e) => setSubjectLevel(e.target.value)}
+                  disabled={!subjectFacultyId}
+                >
+                  <option value="">Select level</option>
+                  {subjectLevelOptions.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+          </div>
+
+          {subjectFacultyId && subjectLevel && (
+            <>
+              <div className="rounded-lg border-2 border-blue-200 bg-white p-6 space-y-4">
+                <h3 className="font-bold text-gray-900">Add subject</h3>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <Field label="Subject name">
+                    <input
+                      className={inputClass}
+                      value={subjectForm.name}
+                      onChange={(e) =>
+                        setSubjectForm({ ...subjectForm, name: e.target.value })
+                      }
+                      placeholder="e.g. Database Management System"
+                    />
+                  </Field>
+                  <Field label="Subject code" optional>
+                    <input
+                      className={inputClass}
+                      value={subjectForm.code}
+                      onChange={(e) =>
+                        setSubjectForm({ ...subjectForm, code: e.target.value })
+                      }
+                      placeholder="e.g. BCA301"
+                    />
+                  </Field>
+                  <div className="flex items-end">
+                    <Button variant="primary" onClick={handleAddSubject}>
+                      Add subject
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {classSubjects.length === 0 ? (
+                <div className="rounded-lg border border-gray-200 bg-white py-12 text-center text-gray-600">
+                  No subjects for this class yet. Add subjects above.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {classSubjects.map((sub) => (
+                    <div
+                      key={sub._id}
+                      className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm space-y-4"
+                    >
+                      <div className="flex flex-wrap justify-between gap-3">
+                        <div>
+                          <h3 className="text-lg font-bold text-gray-900">{sub.name}</h3>
+                          <p className="text-sm text-gray-600">
+                            Code: <span className="font-mono">{sub.code}</span> ·{" "}
+                            {sub.facultyCode} · {sub.levelLabel}
+                          </p>
+                        </div>
+                        {sub.assignedTeacher ? (
+                          <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">
+                            {sub.assignedTeacher.fullName}
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
+                            No teacher assigned
+                          </span>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className={labelClass}>
+                          Assign / change teacher
+                        </label>
+                      
+                        <SearchableTeacherSelect
+                          subjectId={sub._id}
+                          currentTeacherId={sub.assignedTeacher?.teacherId}
+                        />
+                      </div>
+
+                      {sub.assignedTeacher && (
+                        <div className="rounded-lg bg-gray-50 border border-gray-100 px-4 py-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                            Other subjects for this teacher
+                          </p>
+                          {getTeacherOtherAssignments(
+                            sub.assignedTeacher.teacherId,
+                            sub._id
+                          ).length === 0 ? (
+                            <p className="text-sm text-gray-600">
+                              No other subject assignments.
+                            </p>
+                          ) : (
+                            <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                              {getTeacherOtherAssignments(
+                                sub.assignedTeacher.teacherId,
+                                sub._id
+                              ).map((line) => (
+                                <li key={line}>{line}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {(!subjectFacultyId || !subjectLevel) && (
+            <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 py-12 text-center text-gray-600">
+              Select faculty and level to manage subjects.
+            </div>
+          )}
         </div>
       )}
 
