@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   GraduationCap,
   Info,
@@ -343,16 +343,17 @@ export default function Attendance() {
     dummyGeneralAttendance,
   );
 
-  const getClassStudents = (facultyId, levelNum) => {
+  const getClassStudents = (facultyId, levelNum, batch = null) => {
     return dummyClassRoster.filter(
       (s) =>
         s.admission.facultyId === facultyId &&
         s.enrollment.status === "active" &&
-        s.enrollment.currentLevel === levelNum,
+        s.enrollment.currentLevel === levelNum &&
+        (batch ? s.admission.batch === batch : true),
     );
   };
 
-  const getAttendanceChecksFor = (facultyId, levelNum, date) => {
+  const getAttendanceChecksFor = (facultyId, levelNum, date, batch = null) => {
     if (!facultyId || !levelNum || !date) return {};
     const attendanceMap = new Map();
     generalAttendance
@@ -360,7 +361,7 @@ export default function Attendance() {
       .forEach((a) => attendanceMap.set(a.studentId, a));
 
     const checks = {};
-    getClassStudents(facultyId, levelNum).forEach((s) => {
+    getClassStudents(facultyId, levelNum, batch).forEach((s) => {
       const record = attendanceMap
         .get(s._id)
         ?.records?.find((r) => r.date === date);
@@ -369,14 +370,7 @@ export default function Attendance() {
     return checks;
   };
 
-  const [attendanceChecks, setAttendanceChecks] = useState(() => {
-    if (!initialAssignedFacultyId || !initialAssignedLevel) return {};
-    return getAttendanceChecksFor(
-      initialAssignedFacultyId,
-      Number(initialAssignedLevel),
-      selectedDate,
-    );
-  });
+  const [attendanceChecks, setAttendanceChecks] = useState({});
 
   const selectedFaculty = dummyFaculties.find(
     (f) => f._id === selectedFacultyId,
@@ -384,23 +378,62 @@ export default function Attendance() {
   const levelNum = selectedLevel ? Number(selectedLevel) : null;
   const classSelected = Boolean(selectedFacultyId && selectedLevel);
 
+  const activeBatch = useMemo(() => {
+    if (!selectedFacultyId || !levelNum) return null;
+    const batches = Array.from(
+      new Set(
+        dummyClassRoster
+          .filter(
+            (s) =>
+              s.admission.facultyId === selectedFacultyId &&
+              s.enrollment.status === "active" &&
+              s.enrollment.currentLevel === levelNum,
+          )
+          .map((s) => s.admission.batch),
+      ),
+    );
+    return batches.sort((a, b) => Number(b) - Number(a))[0] || null;
+  }, [selectedFacultyId, levelNum]);
+
+  useEffect(() => {
+    if (classSelected && activeBatch && selectedDate) {
+      setAttendanceChecks(
+        getAttendanceChecksFor(
+          selectedFacultyId,
+          levelNum,
+          selectedDate,
+          activeBatch,
+        ),
+      );
+    } else {
+      setAttendanceChecks({});
+    }
+  }, [classSelected, activeBatch, selectedDate, selectedFacultyId, levelNum]);
+
   const classStudents = useMemo(() => {
-    if (!classSelected) return [];
+    if (!classSelected || !activeBatch) return [];
     return dummyClassRoster.filter(
       (s) =>
         s.admission.facultyId === selectedFacultyId &&
+        s.admission.batch === activeBatch &&
         s.enrollment.status === "active" &&
         s.enrollment.currentLevel === levelNum,
     );
-  }, [classSelected, selectedFacultyId, levelNum]);
+  }, [classSelected, selectedFacultyId, levelNum, activeBatch]);
 
   const generalForClass = useMemo(() => {
     const map = new Map();
+    const classIds = new Set(classStudents.map((s) => s._id));
     generalAttendance
-      .filter((a) => a.facultyId === selectedFacultyId && a.level === levelNum)
+      .filter(
+        (a) =>
+          a.facultyId === selectedFacultyId &&
+          a.level === levelNum &&
+          classIds.has(a.studentId),
+      )
       .forEach((a) => map.set(a.studentId, a));
     return map;
-  }, [generalAttendance, selectedFacultyId, levelNum]);
+  }, [generalAttendance, selectedFacultyId, levelNum, classStudents]);
 
   const handleMarkAllPresent = () => {
     const checks = {};
@@ -514,6 +547,7 @@ export default function Attendance() {
               <strong>Your assigned class:</strong>{" "}
               {teacherAssignments[0].facultyCode} —{" "}
               {teacherAssignments[0].levelLabel}
+              {activeBatch ? ` · Batch ${activeBatch}` : ""}
             </p>
           </div>
         ) : (
@@ -592,6 +626,7 @@ export default function Attendance() {
           <p className="mt-3 text-sm text-gray-600">
             Showing: <strong>{selectedFaculty.code}</strong> ·{" "}
             {getLevelLabel(selectedFaculty.structureType, levelNum)}
+            {activeBatch ? ` · Batch ${activeBatch}` : ""}
           </p>
         )}
       </div>
