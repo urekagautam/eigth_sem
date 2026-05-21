@@ -61,6 +61,7 @@ export default function ExamScheduleTab({ schedules, onSaveSchedules }) {
   const [examForm, setExamForm] = useState({
     title: "",
     isCustom: false,
+    fullMarks: 100,
     items: [{ id: "tmp-1", date: today, time: currentTime, subject: "" }],
   });
 
@@ -115,6 +116,8 @@ export default function ExamScheduleTab({ schedules, onSaveSchedules }) {
       id: `exam-${Date.now()}`,
       title: examForm.title.trim(),
       createdAt: new Date().toISOString().slice(0, 10),
+      fullMarks: Number(examForm.fullMarks) || 100,
+      published: false,
       items: cleanItems,
     };
 
@@ -144,6 +147,7 @@ export default function ExamScheduleTab({ schedules, onSaveSchedules }) {
     setExamForm({
       title: "",
       isCustom: false,
+      fullMarks: 100,
       items: [{ id: "tmp-1", date: today, time: currentTime, subject: "" }],
     });
   };
@@ -254,7 +258,9 @@ export default function ExamScheduleTab({ schedules, onSaveSchedules }) {
                         {exam.title}
                       </h3>
                       <p className="text-xs text-gray-500">
-                        Created: {exam.createdAt}
+                        Created: {exam.createdAt} · Full marks:{" "}
+                        {exam.fullMarks ?? 100} ·{" "}
+                        {exam.published ? "Published" : "Not published"}
                       </p>
                     </div>
                   </div>
@@ -336,41 +342,58 @@ export default function ExamScheduleTab({ schedules, onSaveSchedules }) {
             </div>
 
             <div className="p-6 space-y-6">
-              <div>
-                <label className={labelClass}>Exam Title</label>
-                <div className="space-y-3">
-                  <div className="flex flex-wrap gap-2">
-                    {EXAM_TEMPLATES.map((template) => (
-                      <button
-                        key={template}
-                        type="button"
-                        onClick={() =>
-                          setExamForm((f) => ({
-                            ...f,
-                            title: template,
-                            isCustom: false,
-                          }))
-                        }
-                        className={`px-3 py-2 rounded-lg text-sm border ${
-                          examForm.title === template && !examForm.isCustom
-                            ? "bg-blue-50 border-blue-300 text-blue-700"
-                            : "bg-white border-gray-200 hover:bg-gray-50"
-                        }`}
-                      >
-                        {template}
-                      </button>
-                    ))}
+              <div className="grid gap-4 md:grid-cols-[1fr_120px]">
+                <div>
+                  <label className={labelClass}>Exam Title</label>
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                      {EXAM_TEMPLATES.map((template) => (
+                        <button
+                          key={template}
+                          type="button"
+                          onClick={() =>
+                            setExamForm((f) => ({
+                              ...f,
+                              title: template,
+                              isCustom: false,
+                            }))
+                          }
+                          className={`px-3 py-2 rounded-lg text-sm border ${
+                            examForm.title === template && !examForm.isCustom
+                              ? "bg-blue-50 border-blue-300 text-blue-700"
+                              : "bg-white border-gray-200 hover:bg-gray-50"
+                          }`}
+                        >
+                          {template}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      value={examForm.isCustom ? examForm.title : ""}
+                      onChange={(e) =>
+                        setExamForm((f) => ({
+                          ...f,
+                          title: e.target.value,
+                          isCustom: true,
+                        }))
+                      }
+                      placeholder="Or enter custom exam title..."
+                      className={inputClass}
+                    />
                   </div>
+                </div>
+                <div>
+                  <label className={labelClass}>Full marks</label>
                   <input
-                    value={examForm.isCustom ? examForm.title : ""}
+                    type="number"
+                    min="1"
+                    value={examForm.fullMarks}
                     onChange={(e) =>
                       setExamForm((f) => ({
                         ...f,
-                        title: e.target.value,
-                        isCustom: true,
+                        fullMarks: Number(e.target.value) || 100,
                       }))
                     }
-                    placeholder="Or enter custom exam title..."
                     className={inputClass}
                   />
                 </div>

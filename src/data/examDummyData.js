@@ -218,6 +218,8 @@ export const DEFAULT_SCHEDULE_HISTORY = [
       {
         id: "exam-1",
         title: "First Terminal Examination",
+        fullMarks: 100,
+        published: false,
         createdAt: "2026-04-01",
         items: [
           {
@@ -244,6 +246,8 @@ export const DEFAULT_SCHEDULE_HISTORY = [
       {
         id: "exam-1",
         title: "Pre-Board Examination",
+        fullMarks: 50,
+        published: true,
         createdAt: "2026-03-12",
         items: [
           {
