@@ -4,5 +4,5 @@ export default function Resources() {
       <h1 className="text-4xl font-bold text-gray-900 mb-4">Resources</h1>
       <p className="text-xl text-gray-600">🚧 Under Construction</p>
     </div>
-  )
+  );
 }
