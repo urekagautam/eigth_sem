@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo } from "react";
 import {
   X,
   Users,
@@ -11,14 +11,15 @@ import {
   Search,
   ChevronDown,
   Check,
-} from "lucide-react"
-import Button from "../../components/Button"
+} from "lucide-react";
+import Button from "../../components/Button";
+import { DUMMY_SUBJECTS } from "../../data/examDummyData";
 
 const inputClass =
-  "w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+  "w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600";
 const selectClass =
-  "w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 bg-white"
-const labelClass = "block text-sm font-semibold text-gray-700 mb-2"
+  "w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 bg-white";
+const labelClass = "block text-sm font-semibold text-gray-700 mb-2";
 
 const SEMESTER_NAMES = [
   "First",
@@ -29,43 +30,47 @@ const SEMESTER_NAMES = [
   "Sixth",
   "Seventh",
   "Eighth",
-]
-const YEAR_NAMES = ["First", "Second", "Third", "Fourth", "Fifth"]
+];
+const YEAR_NAMES = ["First", "Second", "Third", "Fourth", "Fifth"];
 
-const MAX_SEMESTERS = 8
-const MAX_YEARS = 5
+const MAX_SEMESTERS = 8;
+const MAX_YEARS = 5;
 
 function getLevelLabel(structureType, level) {
-  const names = structureType === "semester" ? SEMESTER_NAMES : YEAR_NAMES
-  const name = names[level - 1] || `Level ${level}`
-  return structureType === "semester" ? `${name} Semester` : `${name} Year`
+  const names = structureType === "semester" ? SEMESTER_NAMES : YEAR_NAMES;
+  const name = names[level - 1] || `Level ${level}`;
+  return structureType === "semester" ? `${name} Semester` : `${name} Year`;
 }
 
 function getLevelOptions(faculty) {
-  if (!faculty) return []
+  if (!faculty) return [];
   const max = Math.min(
     faculty.maxLevel,
-    faculty.structureType === "semester" ? MAX_SEMESTERS : MAX_YEARS
-  )
+    faculty.structureType === "semester" ? MAX_SEMESTERS : MAX_YEARS,
+  );
   return Array.from({ length: max }, (_, i) => {
-    const level = i + 1
-    return { value: level, label: getLevelLabel(faculty.structureType, level) }
-  })
+    const level = i + 1;
+    return { value: level, label: getLevelLabel(faculty.structureType, level) };
+  });
 }
 
 function generatePassword() {
-  return `Tmp@${Math.random().toString(36).slice(2, 10)}`
+  return `Tmp@${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function generateUsername(firstName, lastName, studentId) {
-  const base = `${firstName}.${lastName}`.toLowerCase().replace(/\s+/g, "")
-  return base || studentId?.toLowerCase() || `user${Date.now()}`
+  const base = `${firstName}.${lastName}`.toLowerCase().replace(/\s+/g, "");
+  return base || studentId?.toLowerCase() || `user${Date.now()}`;
 }
 
 function teacherFullName(teacher) {
-  return [teacher.profile.firstName, teacher.profile.middleName, teacher.profile.lastName]
+  return [
+    teacher.profile.firstName,
+    teacher.profile.middleName,
+    teacher.profile.lastName,
+  ]
     .filter(Boolean)
-    .join(" ")
+    .join(" ");
 }
 
 const emptyStudentForm = () => ({
@@ -88,7 +93,7 @@ const emptyStudentForm = () => ({
   motherMobile: "",
   admittedBatch: "",
   currentLevel: "",
-})
+});
 
 const emptyTeacherForm = () => ({
   firstName: "",
@@ -97,7 +102,7 @@ const emptyTeacherForm = () => ({
   phone: "",
   address: "",
   facultyId: "",
-})
+});
 
 // ─── Dummy data (MongoDB-style documents) ───────────────────────────────────
 
@@ -147,7 +152,7 @@ const initialFaculties = [
     isSystemDefault: true,
     createdAt: "2024-01-01T00:00:00.000Z",
   },
-]
+];
 
 const dummyStudents = [
   {
@@ -246,7 +251,7 @@ const dummyStudents = [
     createdAt: "2020-08-01T00:00:00.000Z",
     updatedAt: "2024-03-15T00:00:00.000Z",
   },
-]
+];
 
 const dummyTeachers = [
   {
@@ -306,159 +311,99 @@ const dummyTeachers = [
     createdAt: "2024-01-10T00:00:00.000Z",
     updatedAt: "2024-01-10T00:00:00.000Z",
   },
-]
-
-/** Class subjects — stored per faculty + level; used by exam attendance & teacher assignments */
-const dummySubjects = [
-  {
-    _id: "sub_001",
-    name: "Database Management System",
-    code: "BCA301",
-    facultyId: "fac_bca",
-    facultyCode: "BCA",
-    level: 3,
-    levelLabel: "Third Semester",
-    structureType: "semester",
-    assignedTeacher: {
-      teacherId: "tch_001",
-      fullName: "Anil Prasad Gurung",
-    },
-    createdAt: "2024-01-15T00:00:00.000Z",
-    updatedAt: "2024-04-01T00:00:00.000Z",
-  },
-  {
-    _id: "sub_002",
-    name: "Web Technology",
-    code: "BCA302",
-    facultyId: "fac_bca",
-    facultyCode: "BCA",
-    level: 3,
-    levelLabel: "Third Semester",
-    structureType: "semester",
-    assignedTeacher: {
-      teacherId: "tch_002",
-      fullName: "Sunita Sharma",
-    },
-    createdAt: "2024-01-15T00:00:00.000Z",
-    updatedAt: "2024-04-01T00:00:00.000Z",
-  },
-  {
-    _id: "sub_003",
-    name: "Mathematics III",
-    code: "BCA303",
-    facultyId: "fac_bca",
-    facultyCode: "BCA",
-    level: 3,
-    levelLabel: "Third Semester",
-    structureType: "semester",
-    assignedTeacher: {
-      teacherId: "tch_001",
-      fullName: "Anil Prasad Gurung",
-    },
-    createdAt: "2024-02-01T00:00:00.000Z",
-    updatedAt: "2024-02-01T00:00:00.000Z",
-  },
-  {
-    _id: "sub_004",
-    name: "Business Economics",
-    code: "BBS201",
-    facultyId: "fac_bbs",
-    facultyCode: "BBS",
-    level: 2,
-    levelLabel: "Second Year",
-    structureType: "year",
-    assignedTeacher: {
-      teacherId: "tch_003",
-      fullName: "Ramesh Kumar Adhikari",
-    },
-    createdAt: "2024-03-01T00:00:00.000Z",
-    updatedAt: "2024-03-01T00:00:00.000Z",
-  },
-]
+];
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function Academics() {
-  const [faculties, setFaculties] = useState(initialFaculties)
-  const [students, setStudents] = useState(dummyStudents)
-  const [teachers, setTeachers] = useState(dummyTeachers)
+  const [faculties, setFaculties] = useState(initialFaculties);
+  const [students, setStudents] = useState(dummyStudents);
+  const [teachers, setTeachers] = useState(dummyTeachers);
 
-  const [activeTab, setActiveTab] = useState("students")
-  const [filterFacultyId, setFilterFacultyId] = useState("")
-  const [filterLevel, setFilterLevel] = useState("")
+  const [activeTab, setActiveTab] = useState("students");
+  const [filterFacultyId, setFilterFacultyId] = useState("");
+  const [filterLevel, setFilterLevel] = useState("");
 
-  const [showAddStudent, setShowAddStudent] = useState(false)
-  const [studentForm, setStudentForm] = useState(emptyStudentForm())
-  const [studentFormFacultyId, setStudentFormFacultyId] = useState("")
-  const [newStudentCreds, setNewStudentCreds] = useState(null)
+  const [showAddStudent, setShowAddStudent] = useState(false);
+  const [studentForm, setStudentForm] = useState(emptyStudentForm());
+  const [studentFormFacultyId, setStudentFormFacultyId] = useState("");
+  const [newStudentCreds, setNewStudentCreds] = useState(null);
 
-  const [showAddTeacher, setShowAddTeacher] = useState(false)
-  const [teacherForm, setTeacherForm] = useState(emptyTeacherForm())
-  const [newTeacherCreds, setNewTeacherCreds] = useState(null)
+  const [showAddTeacher, setShowAddTeacher] = useState(false);
+  const [teacherForm, setTeacherForm] = useState(emptyTeacherForm());
+  const [newTeacherCreds, setNewTeacherCreds] = useState(null);
 
-  const [showAddFaculty, setShowAddFaculty] = useState(false)
+  const [showAddFaculty, setShowAddFaculty] = useState(false);
   const [newFacultyForm, setNewFacultyForm] = useState({
     code: "",
     name: "",
     structureType: "semester",
     maxLevel: 8,
-  })
+  });
 
-  const [resetTarget, setResetTarget] = useState(null)
-  const [resetPasswordValue, setResetPasswordValue] = useState("")
-  const [resetSuccess, setResetSuccess] = useState(false)
+  const [resetTarget, setResetTarget] = useState(null);
+  const [resetPasswordValue, setResetPasswordValue] = useState("");
+  const [resetSuccess, setResetSuccess] = useState(false);
 
   const [upgradeForm, setUpgradeForm] = useState({
     facultyId: "",
     fromLevel: "",
     toLevel: "",
     markAsGraduated: false,
-  })
-  const [upgradeNotice, setUpgradeNotice] = useState("")
+  });
+  const [upgradeNotice, setUpgradeNotice] = useState("");
 
-  const [subjects, setSubjects] = useState(dummySubjects)
-  const [subjectFacultyId, setSubjectFacultyId] = useState("")
-  const [subjectLevel, setSubjectLevel] = useState("")
-  const [subjectForm, setSubjectForm] = useState({ name: "", code: "" })
-  const [teacherSearch, setTeacherSearch] = useState({})
-  const [teacherDropdownOpenId, setTeacherDropdownOpenId] = useState(null)
+  const [subjects, setSubjects] = useState(DUMMY_SUBJECTS);
+  const [subjectFacultyId, setSubjectFacultyId] = useState("");
+  const [subjectLevel, setSubjectLevel] = useState("");
+  const [subjectForm, setSubjectForm] = useState({ name: "", code: "" });
+  const [teacherSearch, setTeacherSearch] = useState({});
+  const [teacherDropdownOpenId, setTeacherDropdownOpenId] = useState(null);
 
-  const filterFaculty = faculties.find((f) => f._id === filterFacultyId)
-  const subjectFaculty = faculties.find((f) => f._id === subjectFacultyId)
-  const subjectLevelOptions = useMemo(() => getLevelOptions(subjectFaculty), [subjectFaculty])
-  const studentFormFaculty = faculties.find((f) => f._id === studentFormFacultyId)
+  const filterFaculty = faculties.find((f) => f._id === filterFacultyId);
+  const subjectFaculty = faculties.find((f) => f._id === subjectFacultyId);
+  const subjectLevelOptions = useMemo(
+    () => getLevelOptions(subjectFaculty),
+    [subjectFaculty],
+  );
+  const studentFormFaculty = faculties.find(
+    (f) => f._id === studentFormFacultyId,
+  );
   const levelOptions = useMemo(
     () => getLevelOptions(filterFaculty),
-    [filterFaculty]
-  )
+    [filterFaculty],
+  );
   const studentFormLevelOptions = useMemo(
     () => getLevelOptions(studentFormFaculty),
-    [studentFormFaculty]
-  )
+    [studentFormFaculty],
+  );
 
   const classSubjects = useMemo(() => {
-    if (!subjectFacultyId || !subjectLevel) return []
+    if (!subjectFacultyId || !subjectLevel) return [];
     return subjects.filter(
       (s) =>
-        s.facultyId === subjectFacultyId && s.level === Number(subjectLevel)
-    )
-  }, [subjects, subjectFacultyId, subjectLevel])
+        s.facultyId === subjectFacultyId && s.level === Number(subjectLevel),
+    );
+  }, [subjects, subjectFacultyId, subjectLevel]);
 
   const getTeacherOtherAssignments = (teacherId, excludeSubjectId) =>
     subjects
       .filter(
-        (s) => s.assignedTeacher?.teacherId === teacherId && s._id !== excludeSubjectId
+        (s) =>
+          s.assignedTeacher?.teacherId === teacherId &&
+          s._id !== excludeSubjectId,
       )
-      .map((s) => `${s.facultyCode} · ${s.levelLabel} · ${s.name}`)
+      .map((s) => `${s.facultyCode} · ${s.levelLabel} · ${s.name}`);
 
   const handleAddSubject = () => {
-    const faculty = subjectFaculty
-    if (!faculty || !subjectLevel || !subjectForm.name.trim()) return
-    const level = Number(subjectLevel)
+    const faculty = subjectFaculty;
+    if (!faculty || !subjectLevel || !subjectForm.name.trim()) return;
+    const level = Number(subjectLevel);
     const doc = {
       _id: `sub_${Date.now()}`,
       name: subjectForm.name.trim(),
-      code: subjectForm.code.trim() || `${faculty.code}${level}${Date.now() % 100}`,
+      code:
+        subjectForm.code.trim() || `${faculty.code}${level}${Date.now() % 100}`,
       facultyId: faculty._id,
       facultyCode: faculty.code,
       level,
@@ -467,14 +412,14 @@ export default function Academics() {
       assignedTeacher: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    }
-    setSubjects([doc, ...subjects])
-    setSubjectForm({ name: "", code: "" })
-  }
+    };
+    setSubjects([doc, ...subjects]);
+    setSubjectForm({ name: "", code: "" });
+  };
 
   const handleAssignTeacher = (subjectId, teacherId) => {
-    const teacher = teachers.find((t) => t._id === teacherId)
-    if (!teacher) return
+    const teacher = teachers.find((t) => t._id === teacherId);
+    if (!teacher) return;
     setSubjects(
       subjects.map((s) =>
         s._id === subjectId
@@ -486,27 +431,28 @@ export default function Academics() {
               },
               updatedAt: new Date().toISOString(),
             }
-          : s
-      )
-    )
-    setTeacherSearch((prev) => ({ ...prev, [subjectId]: "" }))
-  }
+          : s,
+      ),
+    );
+    setTeacherSearch((prev) => ({ ...prev, [subjectId]: "" }));
+  };
 
   const filteredStudents = students.filter((s) => {
-    if (filterFacultyId && s.admission.facultyId !== filterFacultyId) return false
+    if (filterFacultyId && s.admission.facultyId !== filterFacultyId)
+      return false;
     if (filterLevel) {
-      if (s.enrollment.status === "graduated") return false
-      if (String(s.enrollment.currentLevel) !== filterLevel) return false
+      if (s.enrollment.status === "graduated") return false;
+      if (String(s.enrollment.currentLevel) !== filterLevel) return false;
     }
-    return true
-  })
+    return true;
+  });
 
   const handleAddFaculty = () => {
-    if (!newFacultyForm.code.trim() || !newFacultyForm.name.trim()) return
+    if (!newFacultyForm.code.trim() || !newFacultyForm.name.trim()) return;
     const max =
       newFacultyForm.structureType === "semester"
         ? Math.min(Number(newFacultyForm.maxLevel) || 8, MAX_SEMESTERS)
-        : Math.min(Number(newFacultyForm.maxLevel) || 4, MAX_YEARS)
+        : Math.min(Number(newFacultyForm.maxLevel) || 4, MAX_YEARS);
 
     const doc = {
       _id: `fac_${Date.now()}`,
@@ -516,26 +462,36 @@ export default function Academics() {
       maxLevel: max,
       isSystemDefault: false,
       createdAt: new Date().toISOString(),
-    }
-    setFaculties([...faculties, doc])
-    setNewFacultyForm({ code: "", name: "", structureType: "semester", maxLevel: 8 })
-    setShowAddFaculty(false)
-  }
+    };
+    setFaculties([...faculties, doc]);
+    setNewFacultyForm({
+      code: "",
+      name: "",
+      structureType: "semester",
+      maxLevel: 8,
+    });
+    setShowAddFaculty(false);
+  };
 
   const handleCreateStudent = () => {
-    const faculty = studentFormFaculty
-    if (!faculty || !studentForm.firstName || !studentForm.lastName || !studentForm.studentId)
-      return
-    if (!studentForm.currentLevel) return
+    const faculty = studentFormFaculty;
+    if (
+      !faculty ||
+      !studentForm.firstName ||
+      !studentForm.lastName ||
+      !studentForm.studentId
+    )
+      return;
+    if (!studentForm.currentLevel) return;
 
-    const level = Number(studentForm.currentLevel)
+    const level = Number(studentForm.currentLevel);
     const username = generateUsername(
       studentForm.firstName,
       studentForm.lastName,
-      studentForm.studentId
-    )
-    const password = generatePassword()
-    setNewStudentCreds({ username, password })
+      studentForm.studentId,
+    );
+    const password = generatePassword();
+    setNewStudentCreds({ username, password });
 
     const doc = {
       _id: `stu_${Date.now()}`,
@@ -581,18 +537,22 @@ export default function Academics() {
       },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    }
-    setStudents([doc, ...students])
-    setStudentForm(emptyStudentForm())
-    setStudentFormFacultyId("")
-  }
+    };
+    setStudents([doc, ...students]);
+    setStudentForm(emptyStudentForm());
+    setStudentFormFacultyId("");
+  };
 
   const handleCreateTeacher = () => {
-    if (!teacherForm.firstName || !teacherForm.lastName) return
-    const faculty = faculties.find((f) => f._id === teacherForm.facultyId)
-    const username = generateUsername(teacherForm.firstName, teacherForm.lastName, "teacher")
-    const password = generatePassword()
-    setNewTeacherCreds({ username, password })
+    if (!teacherForm.firstName || !teacherForm.lastName) return;
+    const faculty = faculties.find((f) => f._id === teacherForm.facultyId);
+    const username = generateUsername(
+      teacherForm.firstName,
+      teacherForm.lastName,
+      "teacher",
+    );
+    const password = generatePassword();
+    setNewTeacherCreds({ username, password });
 
     const doc = {
       _id: `tch_${Date.now()}`,
@@ -612,79 +572,87 @@ export default function Academics() {
       },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    }
-    setTeachers([doc, ...teachers])
-    setTeacherForm(emptyTeacherForm())
-  }
+    };
+    setTeachers([doc, ...teachers]);
+    setTeacherForm(emptyTeacherForm());
+  };
 
   const handleResetPassword = () => {
-    if (!resetTarget || !resetPasswordValue) return
-    const now = new Date().toISOString()
+    if (!resetTarget || !resetPasswordValue) return;
+    const now = new Date().toISOString();
     if (resetTarget.type === "student") {
       setStudents(
         students.map((s) =>
           s._id === resetTarget.id
             ? {
                 ...s,
-                credentials: { ...s.credentials, lastResetAt: now, hasPassword: true },
+                credentials: {
+                  ...s.credentials,
+                  lastResetAt: now,
+                  hasPassword: true,
+                },
                 updatedAt: now,
               }
-            : s
-        )
-      )
+            : s,
+        ),
+      );
     } else {
       setTeachers(
         teachers.map((t) =>
           t._id === resetTarget.id
             ? {
                 ...t,
-                credentials: { ...t.credentials, lastResetAt: now, hasPassword: true },
+                credentials: {
+                  ...t.credentials,
+                  lastResetAt: now,
+                  hasPassword: true,
+                },
                 updatedAt: now,
               }
-            : t
-        )
-      )
+            : t,
+        ),
+      );
     }
-    setResetSuccess(true)
+    setResetSuccess(true);
     setTimeout(() => {
-      setResetTarget(null)
-      setResetPasswordValue("")
-      setResetSuccess(false)
-    }, 2000)
-  }
+      setResetTarget(null);
+      setResetPasswordValue("");
+      setResetSuccess(false);
+    }, 2000);
+  };
 
   const handleBatchUpgrade = () => {
-    setUpgradeNotice("")
-    const faculty = faculties.find((f) => f._id === upgradeForm.facultyId)
+    setUpgradeNotice("");
+    const faculty = faculties.find((f) => f._id === upgradeForm.facultyId);
     if (!faculty) {
-      setUpgradeNotice("Please select a faculty.")
-      return
+      setUpgradeNotice("Please select a faculty.");
+      return;
     }
 
     if (upgradeForm.markAsGraduated) {
       setUpgradeNotice(
-        "UI preview: Graduated students are stored as FACULTY + BATCH only (no semester/year). Backend will enforce upgrade order."
-      )
-      return
+        "UI preview: Graduated students are stored as FACULTY + BATCH only (no semester/year). Backend will enforce upgrade order.",
+      );
+      return;
     }
 
     if (!upgradeForm.fromLevel || !upgradeForm.toLevel) {
-      setUpgradeNotice("Select both current and target level.")
-      return
+      setUpgradeNotice("Select both current and target level.");
+      return;
     }
 
-    const from = Number(upgradeForm.fromLevel)
-    const to = Number(upgradeForm.toLevel)
+    const from = Number(upgradeForm.fromLevel);
+    const to = Number(upgradeForm.toLevel);
     if (to <= from) {
-      setUpgradeNotice("Target level must be higher than current level.")
-      return
+      setUpgradeNotice("Target level must be higher than current level.");
+      return;
     }
 
     if (to > from + 1) {
       setUpgradeNotice(
-        "Upgrade higher semesters/years first. Example: move 5th → 6th before 3rd → 4th. (Backend rule — shown for UI only.)"
-      )
-      return
+        "Upgrade higher semesters/years first. Example: move 5th → 6th before 3rd → 4th. (Backend rule — shown for UI only.)",
+      );
+      return;
     }
 
     setStudents(
@@ -694,9 +662,9 @@ export default function Academics() {
           s.enrollment.status !== "active" ||
           s.enrollment.currentLevel !== from
         ) {
-          return s
+          return s;
         }
-        const isFinal = to >= faculty.maxLevel
+        const isFinal = to >= faculty.maxLevel;
         if (isFinal) {
           return {
             ...s,
@@ -715,7 +683,7 @@ export default function Academics() {
               graduatedAt: new Date().toISOString(),
             },
             updatedAt: new Date().toISOString(),
-          }
+          };
         }
         return {
           ...s,
@@ -726,61 +694,66 @@ export default function Academics() {
             currentClass: `${faculty.code} — ${getLevelLabel(faculty.structureType, to)} — Batch ${s.admission.batch}`,
           },
           updatedAt: new Date().toISOString(),
-        }
-      })
-    )
+        };
+      }),
+    );
     setUpgradeNotice(
-      `Upgraded ${faculty.code} students from ${getLevelLabel(faculty.structureType, from)} to ${getLevelLabel(faculty.structureType, to)}. (Local UI demo.)`
-    )
-  }
+      `Upgraded ${faculty.code} students from ${getLevelLabel(faculty.structureType, from)} to ${getLevelLabel(faculty.structureType, to)}. (Local UI demo.)`,
+    );
+  };
 
   const Field = ({ label, children, optional }) => (
     <div>
       <label className={labelClass}>
         {label}
-        {optional && <span className="font-normal text-gray-500"> (optional)</span>}
+        {optional && (
+          <span className="font-normal text-gray-500"> (optional)</span>
+        )}
       </label>
       {children}
     </div>
-  )
+  );
 
   const tabs = [
     { id: "students", label: "Students", icon: Users },
     { id: "teachers", label: "Teachers", icon: GraduationCap },
     { id: "upgrade", label: "Batch Upgrade", icon: ArrowUpCircle },
     { id: "subjects", label: "Subjects", icon: BookOpen },
-  ]
+  ];
 
   const SearchableTeacherSelect = ({ subjectId, currentTeacherId }) => {
-    const isOpen = teacherDropdownOpenId === subjectId
-    const q = teacherSearch[subjectId] ?? ""
-    const selected = teachers.find((t) => t._id === currentTeacherId)
-    const query = q.trim().toLowerCase()
+    const isOpen = teacherDropdownOpenId === subjectId;
+    const q = teacherSearch[subjectId] ?? "";
+    const selected = teachers.find((t) => t._id === currentTeacherId);
+    const query = q.trim().toLowerCase();
 
     const filtered = teachers.filter((t) => {
-      if (!query) return true
-      const name = teacherFullName(t).toLowerCase()
+      if (!query) return true;
+      const name = teacherFullName(t).toLowerCase();
       return (
         name.includes(query) ||
         t.facultyCode?.toLowerCase().includes(query) ||
         t.profile.phone?.includes(query)
-      )
-    })
+      );
+    });
 
     const openDropdown = () => {
-      setTeacherDropdownOpenId(subjectId)
-      setTeacherSearch((prev) => ({ ...prev, [subjectId]: prev[subjectId] ?? "" }))
-    }
+      setTeacherDropdownOpenId(subjectId);
+      setTeacherSearch((prev) => ({
+        ...prev,
+        [subjectId]: prev[subjectId] ?? "",
+      }));
+    };
 
     const closeDropdown = () => {
-      setTeacherDropdownOpenId(null)
-      setTeacherSearch((prev) => ({ ...prev, [subjectId]: "" }))
-    }
+      setTeacherDropdownOpenId(null);
+      setTeacherSearch((prev) => ({ ...prev, [subjectId]: "" }));
+    };
 
     const pickTeacher = (teacherId) => {
-      handleAssignTeacher(subjectId, teacherId)
-      closeDropdown()
-    }
+      handleAssignTeacher(subjectId, teacherId);
+      closeDropdown();
+    };
 
     return (
       <div className="relative max-w-md">
@@ -791,7 +764,9 @@ export default function Academics() {
           aria-expanded={isOpen}
           aria-haspopup="listbox"
         >
-          <span className={selected ? "font-medium text-gray-900" : "text-gray-500"}>
+          <span
+            className={selected ? "font-medium text-gray-900" : "text-gray-500"}
+          >
             {selected ? teacherFullName(selected) : "Select teacher…"}
           </span>
           <ChevronDown
@@ -817,7 +792,10 @@ export default function Academics() {
                     placeholder="Search by name, faculty, phone…"
                     value={q}
                     onChange={(e) =>
-                      setTeacherSearch((prev) => ({ ...prev, [subjectId]: e.target.value }))
+                      setTeacherSearch((prev) => ({
+                        ...prev,
+                        [subjectId]: e.target.value,
+                      }))
                     }
                     autoFocus
                   />
@@ -831,7 +809,7 @@ export default function Academics() {
                   </li>
                 ) : (
                   filtered.map((t) => {
-                    const isSelected = t._id === currentTeacherId
+                    const isSelected = t._id === currentTeacherId;
                     return (
                       <li key={t._id}>
                         <button
@@ -839,12 +817,16 @@ export default function Academics() {
                           role="option"
                           aria-selected={isSelected}
                           className={`flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left text-sm transition-colors ${
-                            isSelected ? "bg-blue-50 text-blue-800" : "hover:bg-gray-50"
+                            isSelected
+                              ? "bg-blue-50 text-blue-800"
+                              : "hover:bg-gray-50"
                           }`}
                           onClick={() => pickTeacher(t._id)}
                         >
                           <div>
-                            <span className="font-medium">{teacherFullName(t)}</span>
+                            <span className="font-medium">
+                              {teacherFullName(t)}
+                            </span>
                             {t.facultyCode && (
                               <span className="mt-0.5 block text-xs text-gray-500">
                                 {t.facultyCode}
@@ -852,10 +834,12 @@ export default function Academics() {
                               </span>
                             )}
                           </div>
-                          {isSelected && <Check className="h-4 w-4 shrink-0 text-blue-600" />}
+                          {isSelected && (
+                            <Check className="h-4 w-4 shrink-0 text-blue-600" />
+                          )}
                         </button>
                       </li>
-                    )
+                    );
                   })
                 )}
               </ul>
@@ -863,9 +847,8 @@ export default function Academics() {
           </>
         )}
       </div>
-    )
-  }
-
+    );
+  };
 
   return (
     <div className="space-y-8">
@@ -877,7 +860,11 @@ export default function Academics() {
             Manage faculties, students, teachers, subjects, and batch upgrades
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setShowAddFaculty(!showAddFaculty)}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowAddFaculty(!showAddFaculty)}
+        >
           <Plus className="w-4 h-4 inline mr-1" />
           {showAddFaculty ? "Close" : "Add Faculty"}
         </Button>
@@ -895,7 +882,9 @@ export default function Academics() {
               <input
                 className={inputClass}
                 value={newFacultyForm.code}
-                onChange={(e) => setNewFacultyForm({ ...newFacultyForm, code: e.target.value })}
+                onChange={(e) =>
+                  setNewFacultyForm({ ...newFacultyForm, code: e.target.value })
+                }
                 placeholder="e.g. BBA"
               />
             </Field>
@@ -903,7 +892,9 @@ export default function Academics() {
               <input
                 className={inputClass}
                 value={newFacultyForm.name}
-                onChange={(e) => setNewFacultyForm({ ...newFacultyForm, name: e.target.value })}
+                onChange={(e) =>
+                  setNewFacultyForm({ ...newFacultyForm, name: e.target.value })
+                }
                 placeholder="Full program name"
               />
             </Field>
@@ -928,19 +919,26 @@ export default function Academics() {
                 className={selectClass}
                 value={newFacultyForm.maxLevel}
                 onChange={(e) =>
-                  setNewFacultyForm({ ...newFacultyForm, maxLevel: Number(e.target.value) })
+                  setNewFacultyForm({
+                    ...newFacultyForm,
+                    maxLevel: Number(e.target.value),
+                  })
                 }
               >
                 {Array.from(
                   {
                     length:
-                      newFacultyForm.structureType === "semester" ? MAX_SEMESTERS : MAX_YEARS,
+                      newFacultyForm.structureType === "semester"
+                        ? MAX_SEMESTERS
+                        : MAX_YEARS,
                   },
-                  (_, i) => i + 1
+                  (_, i) => i + 1,
                 ).map((n) => (
                   <option key={n} value={n}>
                     {n}{" "}
-                    {newFacultyForm.structureType === "semester" ? "semesters" : "years"}
+                    {newFacultyForm.structureType === "semester"
+                      ? "semesters"
+                      : "years"}
                   </option>
                 ))}
               </select>
@@ -998,14 +996,15 @@ export default function Academics() {
                 className={selectClass}
                 value={filterFacultyId}
                 onChange={(e) => {
-                  setFilterFacultyId(e.target.value)
-                  setFilterLevel("")
+                  setFilterFacultyId(e.target.value);
+                  setFilterLevel("");
                 }}
               >
                 <option value="">All faculties</option>
                 {faculties.map((f) => (
                   <option key={f._id} value={f._id}>
-                    {f.code} — {f.structureType === "semester" ? "Semester" : "Year"} based
+                    {f.code} —{" "}
+                    {f.structureType === "semester" ? "Semester" : "Year"} based
                   </option>
                 ))}
               </select>
@@ -1028,7 +1027,10 @@ export default function Academics() {
                 ))}
               </select>
             </div>
-            <Button variant="primary" onClick={() => setShowAddStudent(!showAddStudent)}>
+            <Button
+              variant="primary"
+              onClick={() => setShowAddStudent(!showAddStudent)}
+            >
               + Add Student
             </Button>
           </div>
@@ -1036,13 +1038,15 @@ export default function Academics() {
           {showAddStudent && (
             <div className="bg-white border-2 border-blue-200 rounded-lg p-8 space-y-6">
               <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold text-gray-900">Create Student Profile</h2>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Create Student Profile
+                </h2>
                 <button
                   type="button"
                   onClick={() => {
-                    setShowAddStudent(false)
-                    setStudentForm(emptyStudentForm())
-                    setNewStudentCreds(null)
+                    setShowAddStudent(false);
+                    setStudentForm(emptyStudentForm());
+                    setNewStudentCreds(null);
                   }}
                   className="text-gray-500 hover:text-gray-700"
                 >
@@ -1056,8 +1060,8 @@ export default function Academics() {
                     className={selectClass}
                     value={studentFormFacultyId}
                     onChange={(e) => {
-                      setStudentFormFacultyId(e.target.value)
-                      setStudentForm({ ...studentForm, currentLevel: "" })
+                      setStudentFormFacultyId(e.target.value);
+                      setStudentForm({ ...studentForm, currentLevel: "" });
                     }}
                   >
                     <option value="">Select faculty</option>
@@ -1073,7 +1077,10 @@ export default function Academics() {
                     className={selectClass}
                     value={studentForm.currentLevel}
                     onChange={(e) =>
-                      setStudentForm({ ...studentForm, currentLevel: e.target.value })
+                      setStudentForm({
+                        ...studentForm,
+                        currentLevel: e.target.value,
+                      })
                     }
                     disabled={!studentFormFacultyId}
                   >
@@ -1090,7 +1097,10 @@ export default function Academics() {
                     className={inputClass}
                     value={studentForm.admittedBatch}
                     onChange={(e) =>
-                      setStudentForm({ ...studentForm, admittedBatch: e.target.value })
+                      setStudentForm({
+                        ...studentForm,
+                        admittedBatch: e.target.value,
+                      })
                     }
                     placeholder="e.g. 2081"
                   />
@@ -1100,14 +1110,19 @@ export default function Academics() {
                     className={inputClass}
                     value={studentForm.studentId}
                     onChange={(e) =>
-                      setStudentForm({ ...studentForm, studentId: e.target.value })
+                      setStudentForm({
+                        ...studentForm,
+                        studentId: e.target.value,
+                      })
                     }
                     placeholder="BCA-2081-001"
                   />
                 </Field>
               </div>
 
-              <h3 className="font-bold text-gray-800 border-b pb-2">Personal details</h3>
+              <h3 className="font-bold text-gray-800 border-b pb-2">
+                Personal details
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[
                   ["First Name", "firstName"],
@@ -1126,14 +1141,19 @@ export default function Academics() {
                       className={inputClass}
                       value={studentForm[key]}
                       onChange={(e) =>
-                        setStudentForm({ ...studentForm, [key]: e.target.value })
+                        setStudentForm({
+                          ...studentForm,
+                          [key]: e.target.value,
+                        })
                       }
                     />
                   </Field>
                 ))}
               </div>
 
-              <h3 className="font-bold text-gray-800 border-b pb-2">Guardian & parents</h3>
+              <h3 className="font-bold text-gray-800 border-b pb-2">
+                Guardian & parents
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
                   ["Guardian Name", "guardianName"],
@@ -1148,7 +1168,10 @@ export default function Academics() {
                       className={inputClass}
                       value={studentForm[key]}
                       onChange={(e) =>
-                        setStudentForm({ ...studentForm, [key]: e.target.value })
+                        setStudentForm({
+                          ...studentForm,
+                          [key]: e.target.value,
+                        })
                       }
                     />
                   </Field>
@@ -1159,7 +1182,7 @@ export default function Academics() {
                 <p className="text-sm font-semibold text-gray-800 flex items-center gap-2">
                   <KeyRound className="w-4 h-4" /> Login credentials
                 </p>
-               {/*  <p className="text-xs text-gray-500">
+                {/*  <p className="text-xs text-gray-500">
                   Generate username & password after saving profile (demo — API will persist hashed
                   password).
                 </p> */}
@@ -1167,11 +1190,15 @@ export default function Academics() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                     <div className="bg-white rounded-lg px-3 py-2 border">
                       <span className="text-gray-500">Username</span>
-                      <p className="font-mono font-semibold">{newStudentCreds.username}</p>
+                      <p className="font-mono font-semibold">
+                        {newStudentCreds.username}
+                      </p>
                     </div>
                     <div className="bg-white rounded-lg px-3 py-2 border">
                       <span className="text-gray-500">Password</span>
-                      <p className="font-mono font-semibold">{newStudentCreds.password}</p>
+                      <p className="font-mono font-semibold">
+                        {newStudentCreds.password}
+                      </p>
                     </div>
                   </div>
                 ) : (
@@ -1182,9 +1209,12 @@ export default function Academics() {
                       const u = generateUsername(
                         studentForm.firstName,
                         studentForm.lastName,
-                        studentForm.studentId
-                      )
-                      setNewStudentCreds({ username: u, password: generatePassword() })
+                        studentForm.studentId,
+                      );
+                      setNewStudentCreds({
+                        username: u,
+                        password: generatePassword(),
+                      });
                     }}
                   >
                     Preview generated credentials
@@ -1196,9 +1226,9 @@ export default function Academics() {
                 <Button
                   variant="secondary"
                   onClick={() => {
-                    setShowAddStudent(false)
-                    setStudentForm(emptyStudentForm())
-                    setNewStudentCreds(null)
+                    setShowAddStudent(false);
+                    setStudentForm(emptyStudentForm());
+                    setNewStudentCreds(null);
                   }}
                 >
                   Cancel
@@ -1225,12 +1255,14 @@ export default function Academics() {
                   <div className="flex flex-wrap justify-between gap-4">
                     <div>
                       <h3 className="text-lg font-bold text-gray-900">
-                        {s.profile.firstName} {s.profile.middleName} {s.profile.lastName}
+                        {s.profile.firstName} {s.profile.middleName}{" "}
+                        {s.profile.lastName}
                       </h3>
                       <p className="text-sm text-gray-600">{s.studentId}</p>
                       {s.enrollment.status === "graduated" ? (
                         <span className="inline-block mt-2 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">
-                          Graduated — {s.graduation.facultyCode} Batch {s.graduation.batch}
+                          Graduated — {s.graduation.facultyCode} Batch{" "}
+                          {s.graduation.batch}
                         </span>
                       ) : (
                         <span className="inline-block mt-2 rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-800">
@@ -1240,7 +1272,9 @@ export default function Academics() {
                     </div>
                     <div className="text-right text-sm text-gray-600 space-y-1">
                       <p>@{s.credentials.username}</p>
-                      <p>{s.profile.mobile} · {s.profile.email}</p>
+                      <p>
+                        {s.profile.mobile} · {s.profile.email}
+                      </p>
                       <Button
                         variant="outline"
                         size="sm"
@@ -1249,9 +1283,9 @@ export default function Academics() {
                             type: "student",
                             id: s._id,
                             name: `${s.profile.firstName} ${s.profile.lastName}`,
-                          })
-                          setResetPasswordValue(generatePassword())
-                          setResetSuccess(false)
+                          });
+                          setResetPasswordValue(generatePassword());
+                          setResetSuccess(false);
                         }}
                       >
                         <RefreshCw className="w-3 h-3 inline mr-1" />
@@ -1270,7 +1304,10 @@ export default function Academics() {
       {activeTab === "teachers" && (
         <div className="space-y-6">
           <div className="flex justify-end">
-            <Button variant="primary" onClick={() => setShowAddTeacher(!showAddTeacher)}>
+            <Button
+              variant="primary"
+              onClick={() => setShowAddTeacher(!showAddTeacher)}
+            >
               + Add Teacher
             </Button>
           </div>
@@ -1278,13 +1315,15 @@ export default function Academics() {
           {showAddTeacher && (
             <div className="bg-white border-2 border-blue-200 rounded-lg p-8 space-y-6">
               <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold text-gray-900">Create Teacher Profile</h2>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Create Teacher Profile
+                </h2>
                 <button
                   type="button"
                   onClick={() => {
-                    setShowAddTeacher(false)
-                    setTeacherForm(emptyTeacherForm())
-                    setNewTeacherCreds(null)
+                    setShowAddTeacher(false);
+                    setTeacherForm(emptyTeacherForm());
+                    setNewTeacherCreds(null);
                   }}
                   className="text-gray-500 hover:text-gray-700"
                 >
@@ -1297,7 +1336,10 @@ export default function Academics() {
                     className={inputClass}
                     value={teacherForm.firstName}
                     onChange={(e) =>
-                      setTeacherForm({ ...teacherForm, firstName: e.target.value })
+                      setTeacherForm({
+                        ...teacherForm,
+                        firstName: e.target.value,
+                      })
                     }
                   />
                 </Field>
@@ -1306,7 +1348,10 @@ export default function Academics() {
                     className={inputClass}
                     value={teacherForm.middleName}
                     onChange={(e) =>
-                      setTeacherForm({ ...teacherForm, middleName: e.target.value })
+                      setTeacherForm({
+                        ...teacherForm,
+                        middleName: e.target.value,
+                      })
                     }
                   />
                 </Field>
@@ -1315,7 +1360,10 @@ export default function Academics() {
                     className={inputClass}
                     value={teacherForm.lastName}
                     onChange={(e) =>
-                      setTeacherForm({ ...teacherForm, lastName: e.target.value })
+                      setTeacherForm({
+                        ...teacherForm,
+                        lastName: e.target.value,
+                      })
                     }
                   />
                 </Field>
@@ -1323,7 +1371,9 @@ export default function Academics() {
                   <input
                     className={inputClass}
                     value={teacherForm.phone}
-                    onChange={(e) => setTeacherForm({ ...teacherForm, phone: e.target.value })}
+                    onChange={(e) =>
+                      setTeacherForm({ ...teacherForm, phone: e.target.value })
+                    }
                   />
                 </Field>
                 <Field label="Faculty (optional)">
@@ -1331,7 +1381,10 @@ export default function Academics() {
                     className={selectClass}
                     value={teacherForm.facultyId}
                     onChange={(e) =>
-                      setTeacherForm({ ...teacherForm, facultyId: e.target.value })
+                      setTeacherForm({
+                        ...teacherForm,
+                        facultyId: e.target.value,
+                      })
                     }
                   >
                     <option value="">Not linked to faculty</option>
@@ -1349,7 +1402,10 @@ export default function Academics() {
                       rows={2}
                       value={teacherForm.address}
                       onChange={(e) =>
-                        setTeacherForm({ ...teacherForm, address: e.target.value })
+                        setTeacherForm({
+                          ...teacherForm,
+                          address: e.target.value,
+                        })
                       }
                     />
                   </Field>
@@ -1364,11 +1420,15 @@ export default function Academics() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                     <div className="bg-white rounded-lg px-3 py-2 border">
                       <span className="text-gray-500">Username</span>
-                      <p className="font-mono font-semibold">{newTeacherCreds.username}</p>
+                      <p className="font-mono font-semibold">
+                        {newTeacherCreds.username}
+                      </p>
                     </div>
                     <div className="bg-white rounded-lg px-3 py-2 border">
                       <span className="text-gray-500">Password</span>
-                      <p className="font-mono font-semibold">{newTeacherCreds.password}</p>
+                      <p className="font-mono font-semibold">
+                        {newTeacherCreds.password}
+                      </p>
                     </div>
                   </div>
                 ) : (
@@ -1380,7 +1440,7 @@ export default function Academics() {
                         username: generateUsername(
                           teacherForm.firstName,
                           teacherForm.lastName,
-                          "t"
+                          "t",
                         ),
                         password: generatePassword(),
                       })
@@ -1392,7 +1452,10 @@ export default function Academics() {
               </div>
 
               <div className="flex justify-end gap-3">
-                <Button variant="secondary" onClick={() => setShowAddTeacher(false)}>
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowAddTeacher(false)}
+                >
                   Cancel
                 </Button>
                 <Button variant="primary" onClick={handleCreateTeacher}>
@@ -1410,7 +1473,8 @@ export default function Academics() {
               >
                 <div>
                   <h3 className="text-lg font-bold text-gray-900">
-                    {t.profile.firstName} {t.profile.middleName} {t.profile.lastName}
+                    {t.profile.firstName} {t.profile.middleName}{" "}
+                    {t.profile.lastName}
                   </h3>
                   <p className="text-sm text-gray-600">{t.profile.address}</p>
                   <p className="text-sm text-gray-600 mt-1">
@@ -1419,7 +1483,9 @@ export default function Academics() {
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm text-gray-600">@{t.credentials.username}</p>
+                  <p className="text-sm text-gray-600">
+                    @{t.credentials.username}
+                  </p>
                   <Button
                     variant="outline"
                     size="sm"
@@ -1429,9 +1495,9 @@ export default function Academics() {
                         type: "teacher",
                         id: t._id,
                         name: `${t.profile.firstName} ${t.profile.lastName}`,
-                      })
-                      setResetPasswordValue(generatePassword())
-                      setResetSuccess(false)
+                      });
+                      setResetPasswordValue(generatePassword());
+                      setResetSuccess(false);
                     }}
                   >
                     Reset password
@@ -1446,17 +1512,19 @@ export default function Academics() {
       {/* ─── Batch upgrade tab ─── */}
       {activeTab === "upgrade" && (
         <div className="bg-white border border-gray-200 rounded-lg p-8 space-y-6">
-          <h2 className="text-xl font-bold text-gray-900">Semester / Year Batch Upgrade</h2>
-        {/*   <p className="text-sm text-gray-600">
+          <h2 className="text-xl font-bold text-gray-900">
+            Semester / Year Batch Upgrade
+          </h2>
+          {/*   <p className="text-sm text-gray-600">
             Upgrade an entire class to the next semester or year. After final level, students move
             to graduated status (faculty + batch only).
           </p> */}
 
           <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
-             Upgrade an entire class to the next semester or year. After final level, students move
-            to graduated status (faculty + batch only).
+            Upgrade an entire class to the next semester or year. After final
+            level, students move to graduated status (faculty + batch only).
           </div>
-   {/*         Higher levels must be upgraded before lower ones can advance (e.g. 7th before 5th). This
+          {/*         Higher levels must be upgraded before lower ones can advance (e.g. 7th before 5th). This
             rule will be enforced by the backend — this, for ref !!*/}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1487,7 +1555,10 @@ export default function Academics() {
                   type="checkbox"
                   checked={upgradeForm.markAsGraduated}
                   onChange={(e) =>
-                    setUpgradeForm({ ...upgradeForm, markAsGraduated: e.target.checked })
+                    setUpgradeForm({
+                      ...upgradeForm,
+                      markAsGraduated: e.target.checked,
+                    })
                   }
                   className="w-4 h-4"
                 />
@@ -1498,8 +1569,8 @@ export default function Academics() {
               <>
                 <Field
                   label={
-                    faculties.find((f) => f._id === upgradeForm.facultyId)?.structureType ===
-                    "year"
+                    faculties.find((f) => f._id === upgradeForm.facultyId)
+                      ?.structureType === "year"
                       ? "From year"
                       : "From semester"
                   }
@@ -1508,18 +1579,21 @@ export default function Academics() {
                     className={selectClass}
                     value={upgradeForm.fromLevel}
                     onChange={(e) =>
-                      setUpgradeForm({ ...upgradeForm, fromLevel: e.target.value })
+                      setUpgradeForm({
+                        ...upgradeForm,
+                        fromLevel: e.target.value,
+                      })
                     }
                     disabled={!upgradeForm.facultyId}
                   >
                     <option value="">Current level</option>
-                    {getLevelOptions(faculties.find((f) => f._id === upgradeForm.facultyId)).map(
-                      (o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      )
-                    )}
+                    {getLevelOptions(
+                      faculties.find((f) => f._id === upgradeForm.facultyId),
+                    ).map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
                   </select>
                 </Field>
                 <Field label="To level">
@@ -1527,12 +1601,17 @@ export default function Academics() {
                     className={selectClass}
                     value={upgradeForm.toLevel}
                     onChange={(e) =>
-                      setUpgradeForm({ ...upgradeForm, toLevel: e.target.value })
+                      setUpgradeForm({
+                        ...upgradeForm,
+                        toLevel: e.target.value,
+                      })
                     }
                     disabled={!upgradeForm.fromLevel}
                   >
                     <option value="">Target level</option>
-                    {getLevelOptions(faculties.find((f) => f._id === upgradeForm.facultyId))
+                    {getLevelOptions(
+                      faculties.find((f) => f._id === upgradeForm.facultyId),
+                    )
                       .filter((o) => o.value > Number(upgradeForm.fromLevel))
                       .map((o) => (
                         <option key={o.value} value={o.value}>
@@ -1546,11 +1625,13 @@ export default function Academics() {
           </div>
 
           {upgradeNotice && (
-            <p className="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-800">{upgradeNotice}</p>
+            <p className="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-800">
+              {upgradeNotice}
+            </p>
           )}
 
           <Button variant="primary" onClick={handleBatchUpgrade}>
-            Apply batch upgrade 
+            Apply batch upgrade
           </Button>
         </div>
       )}
@@ -1559,10 +1640,13 @@ export default function Academics() {
       {activeTab === "subjects" && (
         <div className="space-y-6">
           <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="mb-4 text-lg font-bold text-gray-900">Class subjects</h2>
+            <h2 className="mb-4 text-lg font-bold text-gray-900">
+              Class subjects
+            </h2>
             <p className="mb-4 text-sm text-gray-600">
-              Add subjects per faculty and level. Assign teachers from your teacher list. These
-              subjects are used when marking exam attendance.
+              Add subjects per faculty and level. Assign teachers from your
+              teacher list. These subjects are used when marking exam
+              attendance.
             </p>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Field label="Faculty">
@@ -1570,8 +1654,8 @@ export default function Academics() {
                   className={selectClass}
                   value={subjectFacultyId}
                   onChange={(e) => {
-                    setSubjectFacultyId(e.target.value)
-                    setSubjectLevel("")
+                    setSubjectFacultyId(e.target.value);
+                    setSubjectLevel("");
                   }}
                 >
                   <option value="">Select faculty</option>
@@ -1650,10 +1734,12 @@ export default function Academics() {
                     >
                       <div className="flex flex-wrap justify-between gap-3">
                         <div>
-                          <h3 className="text-lg font-bold text-gray-900">{sub.name}</h3>
+                          <h3 className="text-lg font-bold text-gray-900">
+                            {sub.name}
+                          </h3>
                           <p className="text-sm text-gray-600">
-                            Code: <span className="font-mono">{sub.code}</span> ·{" "}
-                            {sub.facultyCode} · {sub.levelLabel}
+                            Code: <span className="font-mono">{sub.code}</span>{" "}
+                            · {sub.facultyCode} · {sub.levelLabel}
                           </p>
                         </div>
                         {sub.assignedTeacher ? (
@@ -1671,7 +1757,7 @@ export default function Academics() {
                         <label className={labelClass}>
                           Assign / change teacher
                         </label>
-                      
+
                         <SearchableTeacherSelect
                           subjectId={sub._id}
                           currentTeacherId={sub.assignedTeacher?.teacherId}
@@ -1685,7 +1771,7 @@ export default function Academics() {
                           </p>
                           {getTeacherOtherAssignments(
                             sub.assignedTeacher.teacherId,
-                            sub._id
+                            sub._id,
                           ).length === 0 ? (
                             <p className="text-sm text-gray-600">
                               No other subject assignments.
@@ -1694,7 +1780,7 @@ export default function Academics() {
                             <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
                               {getTeacherOtherAssignments(
                                 sub.assignedTeacher.teacherId,
-                                sub._id
+                                sub._id,
                               ).map((line) => (
                                 <li key={line}>{line}</li>
                               ))}
@@ -1722,7 +1808,9 @@ export default function Academics() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
             <div className="flex justify-between items-center">
-              <h3 className="text-lg font-bold text-gray-900">Reset password</h3>
+              <h3 className="text-lg font-bold text-gray-900">
+                Reset password
+              </h3>
               <button
                 type="button"
                 onClick={() => setResetTarget(null)}
@@ -1751,7 +1839,9 @@ export default function Academics() {
               </div>
             </Field>
             {resetSuccess && (
-              <p className="text-sm text-green-700 font-medium">Password reset recorded (UI demo).</p>
+              <p className="text-sm text-green-700 font-medium">
+                Password reset recorded (UI demo).
+              </p>
             )}
             <div className="flex justify-end gap-3">
               <Button variant="secondary" onClick={() => setResetTarget(null)}>
@@ -1765,5 +1855,5 @@ export default function Academics() {
         </div>
       )}
     </div>
-  )
+  );
 }

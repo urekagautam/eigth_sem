@@ -3,6 +3,7 @@ import { X, Plus, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import Button from "../Button";
 import {
   FACULTY_CATALOG,
+  DUMMY_SUBJECTS,
   getFacultyByCode,
   getLevelOptionsForFacultyCode,
   getLevelLabel,
@@ -18,6 +19,9 @@ const EXAM_TEMPLATES = [
   "Pre-Board Examination",
   "Final Examination",
 ];
+
+const today = new Date().toISOString().split("T")[0];
+const currentTime = new Date().toTimeString().slice(0, 5);
 
 export default function ExamScheduleTab({ schedules, onSaveSchedules }) {
   const [selectedFaculty, setSelectedFaculty] = useState("BCA");
@@ -44,10 +48,20 @@ export default function ExamScheduleTab({ schedules, onSaveSchedules }) {
     (s) => s.facultyCode === selectedFaculty && s.level === selectedLevel,
   );
 
+  const availableSubjects = useMemo(
+    () =>
+      DUMMY_SUBJECTS.filter(
+        (sub) =>
+          sub.facultyCode === selectedFaculty &&
+          sub.level === Number(selectedLevel),
+      ),
+    [selectedFaculty, selectedLevel],
+  );
+
   const [examForm, setExamForm] = useState({
     title: "",
     isCustom: false,
-    items: [{ id: "tmp-1", date: "", time: "", subject: "" }],
+    items: [{ id: "tmp-1", date: today, time: currentTime, subject: "" }],
   });
 
   const addRow = () =>
@@ -55,7 +69,12 @@ export default function ExamScheduleTab({ schedules, onSaveSchedules }) {
       ...f,
       items: [
         ...f.items,
-        { id: `tmp-${Date.now()}`, date: "", time: "", subject: "" },
+        {
+          id: `tmp-${Date.now()}`,
+          date: today,
+          time: currentTime,
+          subject: "",
+        },
       ],
     }));
 
@@ -125,7 +144,7 @@ export default function ExamScheduleTab({ schedules, onSaveSchedules }) {
     setExamForm({
       title: "",
       isCustom: false,
-      items: [{ id: "tmp-1", date: "", time: "", subject: "" }],
+      items: [{ id: "tmp-1", date: today, time: currentTime, subject: "" }],
     });
   };
 
@@ -407,14 +426,25 @@ export default function ExamScheduleTab({ schedules, onSaveSchedules }) {
                       <label className="block text-xs font-semibold text-gray-600 mb-1">
                         Subject
                       </label>
-                      <input
+                      <select
                         value={it.subject}
                         onChange={(e) =>
                           updateRow(it.id, { subject: e.target.value })
                         }
-                        placeholder="e.g. Data Structures"
                         className={inputClass}
-                      />
+                        disabled={availableSubjects.length === 0}
+                      >
+                        <option value="">
+                          {availableSubjects.length
+                            ? "Select a subject"
+                            : "No subjects available for this class"}
+                        </option>
+                        {availableSubjects.map((sub) => (
+                          <option key={sub._id} value={sub.name}>
+                            {sub.code} — {sub.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <button
                       type="button"
