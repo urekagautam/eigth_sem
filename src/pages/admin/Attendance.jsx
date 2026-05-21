@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, Fragment } from "react"
+import { useState, useMemo, Fragment } from "react";
 import {
   Calendar,
   ClipboardCheck,
@@ -7,14 +7,17 @@ import {
   Info,
   CheckCircle2,
   XCircle,
-} from "lucide-react"
-import Button from "../../components/Button"
+  CalendarX,
+  Plus,
+  X,
+} from "lucide-react";
+import Button from "../../components/Button";
 
 const selectClass =
-  "w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 bg-white"
+  "w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 bg-white";
 const inputClass =
-  "w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
-const labelClass = "block text-sm font-semibold text-gray-700 mb-2"
+  "w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600";
+const labelClass = "block text-sm font-semibold text-gray-700 mb-2";
 
 const SEMESTER_NAMES = [
   "First",
@@ -25,29 +28,31 @@ const SEMESTER_NAMES = [
   "Sixth",
   "Seventh",
   "Eighth",
-]
-const YEAR_NAMES = ["First", "Second", "Third", "Fourth", "Fifth"]
+];
+const YEAR_NAMES = ["First", "Second", "Third", "Fourth", "Fifth"];
 
 function getLevelLabel(structureType, level) {
-  const names = structureType === "semester" ? SEMESTER_NAMES : YEAR_NAMES
-  const name = names[level - 1] || `Level ${level}`
-  return structureType === "semester" ? `${name} Semester` : `${name} Year`
+  const names = structureType === "semester" ? SEMESTER_NAMES : YEAR_NAMES;
+  const name = names[level - 1] || `Level ${level}`;
+  return structureType === "semester" ? `${name} Semester` : `${name} Year`;
 }
 
 function getLevelOptions(faculty) {
-  if (!faculty) return []
+  if (!faculty) return [];
   const max =
     faculty.structureType === "semester"
       ? Math.min(faculty.maxLevel, 8)
-      : Math.min(faculty.maxLevel, 5)
+      : Math.min(faculty.maxLevel, 5);
   return Array.from({ length: max }, (_, i) => {
-    const level = i + 1
-    return { value: level, label: getLevelLabel(faculty.structureType, level) }
-  })
+    const level = i + 1;
+    return { value: level, label: getLevelLabel(faculty.structureType, level) };
+  });
 }
 
 function fullName(profile) {
-  return [profile.firstName, profile.middleName, profile.lastName].filter(Boolean).join(" ")
+  return [profile.firstName, profile.middleName, profile.lastName]
+    .filter(Boolean)
+    .join(" ");
 }
 
 // ─── Dummy data (MongoDB-style) ─────────────────────────────────────────────
@@ -88,7 +93,7 @@ const dummyFaculties = [
     structureType: "semester",
     maxLevel: 8,
   },
-]
+];
 
 /** Active students roster — same shape academics would return for a class */
 const dummyClassRoster = [
@@ -97,37 +102,57 @@ const dummyClassRoster = [
     studentId: "BCA-2081-001",
     profile: { firstName: "Sita", middleName: "Kumari", lastName: "Shrestha" },
     admission: { facultyId: "fac_bca", facultyCode: "BCA", batch: "2081" },
-    enrollment: { status: "active", currentLevel: 3, currentLevelLabel: "Third Semester" },
+    enrollment: {
+      status: "active",
+      currentLevel: 3,
+      currentLevelLabel: "Third Semester",
+    },
   },
   {
     _id: "stu_003",
     studentId: "BCA-2081-002",
     profile: { firstName: "Ram", middleName: "", lastName: "Thapa" },
     admission: { facultyId: "fac_bca", facultyCode: "BCA", batch: "2081" },
-    enrollment: { status: "active", currentLevel: 3, currentLevelLabel: "Third Semester" },
+    enrollment: {
+      status: "active",
+      currentLevel: 3,
+      currentLevelLabel: "Third Semester",
+    },
   },
   {
     _id: "stu_004",
     studentId: "BCA-2081-003",
     profile: { firstName: "Anita", middleName: "Devi", lastName: "Poudel" },
     admission: { facultyId: "fac_bca", facultyCode: "BCA", batch: "2081" },
-    enrollment: { status: "active", currentLevel: 3, currentLevelLabel: "Third Semester" },
+    enrollment: {
+      status: "active",
+      currentLevel: 3,
+      currentLevelLabel: "Third Semester",
+    },
   },
   {
     _id: "stu_005",
     studentId: "BCA-2081-004",
     profile: { firstName: "Bikash", middleName: "Kumar", lastName: "Rai" },
     admission: { facultyId: "fac_bca", facultyCode: "BCA", batch: "2081" },
-    enrollment: { status: "active", currentLevel: 3, currentLevelLabel: "Third Semester" },
+    enrollment: {
+      status: "active",
+      currentLevel: 3,
+      currentLevelLabel: "Third Semester",
+    },
   },
   {
     _id: "stu_006",
     studentId: "BBS-2081-001",
     profile: { firstName: "Priya", middleName: "", lastName: "Maharjan" },
     admission: { facultyId: "fac_bbs", facultyCode: "BBS", batch: "2081" },
-    enrollment: { status: "active", currentLevel: 2, currentLevelLabel: "Second Year" },
+    enrollment: {
+      status: "active",
+      currentLevel: 2,
+      currentLevelLabel: "Second Year",
+    },
   },
-]
+];
 
 /**
  * General class attendance — marked by teachers; admin read-only.
@@ -140,31 +165,37 @@ const dummyGeneralAttendance = [
     facultyId: "fac_bca",
     level: 3,
     type: "general",
-    summary: { totalClasses: 42, present: 38, absent: 3, late: 1, percentage: 90.5 },
+    summary: { totalClasses: 42, present: 38, absent: 4, percentage: 90.5 },
     records: [
       {
         _id: "rec_1",
         date: "2024-05-15",
         status: "present",
-        markedBy: { role: "teacher", teacherId: "tch_001", name: "Anil Gurung" },
+        markedBy: {
+          role: "teacher",
+          teacherId: "tch_001",
+          name: "Anil Gurung",
+        },
       },
       {
         _id: "rec_2",
         date: "2024-05-14",
         status: "present",
-        markedBy: { role: "teacher", teacherId: "tch_001", name: "Anil Gurung" },
-      },
-      {
-        _id: "rec_3",
-        date: "2024-05-13",
-        status: "late",
-        markedBy: { role: "teacher", teacherId: "tch_001", name: "Anil Gurung" },
+        markedBy: {
+          role: "teacher",
+          teacherId: "tch_001",
+          name: "Anil Gurung",
+        },
       },
       {
         _id: "rec_4",
         date: "2024-05-12",
         status: "absent",
-        markedBy: { role: "teacher", teacherId: "tch_001", name: "Anil Gurung" },
+        markedBy: {
+          role: "teacher",
+          teacherId: "tch_001",
+          name: "Anil Gurung",
+        },
       },
     ],
     updatedAt: "2024-05-15T10:00:00.000Z",
@@ -175,19 +206,27 @@ const dummyGeneralAttendance = [
     facultyId: "fac_bca",
     level: 3,
     type: "general",
-    summary: { totalClasses: 42, present: 35, absent: 6, late: 1, percentage: 83.3 },
+    summary: { totalClasses: 42, present: 35, absent: 7, percentage: 83.3 },
     records: [
       {
         _id: "rec_5",
         date: "2024-05-15",
         status: "present",
-        markedBy: { role: "teacher", teacherId: "tch_001", name: "Anil Gurung" },
+        markedBy: {
+          role: "teacher",
+          teacherId: "tch_001",
+          name: "Anil Gurung",
+        },
       },
       {
         _id: "rec_6",
         date: "2024-05-14",
         status: "absent",
-        markedBy: { role: "teacher", teacherId: "tch_001", name: "Anil Gurung" },
+        markedBy: {
+          role: "teacher",
+          teacherId: "tch_001",
+          name: "Anil Gurung",
+        },
       },
     ],
     updatedAt: "2024-05-15T10:00:00.000Z",
@@ -198,7 +237,7 @@ const dummyGeneralAttendance = [
     facultyId: "fac_bca",
     level: 3,
     type: "general",
-    summary: { totalClasses: 42, present: 40, absent: 2, late: 0, percentage: 95.2 },
+    summary: { totalClasses: 42, present: 40, absent: 2, percentage: 95.2 },
     records: [],
     updatedAt: "2024-05-14T09:00:00.000Z",
   },
@@ -208,11 +247,11 @@ const dummyGeneralAttendance = [
     facultyId: "fac_bca",
     level: 3,
     type: "general",
-    summary: { totalClasses: 42, present: 30, absent: 10, late: 2, percentage: 71.4 },
+    summary: { totalClasses: 42, present: 30, absent: 12, percentage: 71.4 },
     records: [],
     updatedAt: "2024-05-13T09:00:00.000Z",
   },
-]
+];
 
 /**
  * Subjects collection — same documents as Academics (GET /api/subjects?facultyId&level)
@@ -256,9 +295,12 @@ const dummySubjects = [
     facultyCode: "BBS",
     level: 2,
     levelLabel: "Second Year",
-    assignedTeacher: { teacherId: "tch_003", fullName: "Ramesh Kumar Adhikari" },
+    assignedTeacher: {
+      teacherId: "tch_003",
+      fullName: "Ramesh Kumar Adhikari",
+    },
   },
-]
+];
 
 /** Exam sessions — linked to subjectId from subjects collection */
 const dummyExamSessions = [
@@ -286,7 +328,7 @@ const dummyExamSessions = [
     createdBy: { role: "admin", adminId: "admin_001" },
     createdAt: "2024-05-08T00:00:00.000Z",
   },
-]
+];
 
 /**
  * Exam attendance — marked by admin only. type: "exam" for performance module.
@@ -344,63 +386,87 @@ const dummyExamAttendance = [
     markedBy: { role: "admin", adminId: "admin_001" },
     markedAt: "2024-05-10T08:31:00.000Z",
   },
-]
+];
 
 const statusBadge = {
   present: "bg-green-100 text-green-800",
   absent: "bg-red-100 text-red-800",
-  late: "bg-amber-100 text-amber-800",
-}
+};
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function Attendance() {
-  const [filterFacultyId, setFilterFacultyId] = useState("")
-  const [filterLevel, setFilterLevel] = useState("")
-  const [category, setCategory] = useState("general")
+  const [filterFacultyId, setFilterFacultyId] = useState("");
+  const [filterLevel, setFilterLevel] = useState("");
+  const [category, setCategory] = useState("general");
 
-  const [generalAttendance] = useState(dummyGeneralAttendance)
-  const [examSessions, setExamSessions] = useState(dummyExamSessions)
-  const [examAttendance, setExamAttendance] = useState(dummyExamAttendance)
+  const [generalAttendance] = useState(dummyGeneralAttendance);
+  const [examSessions, setExamSessions] = useState(dummyExamSessions);
+  const [examAttendance, setExamAttendance] = useState(dummyExamAttendance);
 
-  const [examDate, setExamDate] = useState("2024-05-20")
-  const [examTitle, setExamTitle] = useState("Mid-Term Examination")
-  const [selectedSubjectId, setSelectedSubjectId] = useState("sub_001")
-  const [examChecks, setExamChecks] = useState({})
-  const [saveMessage, setSaveMessage] = useState("")
-  const [expandedStudentId, setExpandedStudentId] = useState(null)
+  const [examDate, setExamDate] = useState("2024-05-20");
+  const [examTitle, setExamTitle] = useState("Mid-Term Examination");
+  const [selectedSubjectId, setSelectedSubjectId] = useState("");
+  const [examChecks, setExamChecks] = useState({});
+  const [saveMessage, setSaveMessage] = useState("");
+  const [expandedStudentId, setExpandedStudentId] = useState(null);
 
-  const filterFaculty = dummyFaculties.find((f) => f._id === filterFacultyId)
-  const levelOptions = useMemo(() => getLevelOptions(filterFaculty), [filterFaculty])
-  const levelNum = filterLevel ? Number(filterLevel) : null
-  const classSelected = Boolean(filterFacultyId && filterLevel)
+  // Holiday management
+  const [customHolidays, setCustomHolidays] = useState([
+    "2024-05-01", // Example: Labour Day
+    "2024-12-25", // Example: Christmas
+  ]);
+  const [showHolidayPanel, setShowHolidayPanel] = useState(false);
+  const [newHolidayDate, setNewHolidayDate] = useState("");
+
+  // Check if a date is a weekend (Saturday = 6, Sunday = 0)
+  const handleAddHoliday = () => {
+    if (newHolidayDate && !customHolidays.includes(newHolidayDate)) {
+      setCustomHolidays([...customHolidays, newHolidayDate]);
+      setNewHolidayDate("");
+    }
+  };
+
+  const handleRemoveHoliday = (dateToRemove) => {
+    setCustomHolidays(customHolidays.filter((d) => d !== dateToRemove));
+  };
+
+  const filterFaculty = dummyFaculties.find((f) => f._id === filterFacultyId);
+  const levelOptions = useMemo(
+    () => getLevelOptions(filterFaculty),
+    [filterFaculty],
+  );
+  const levelNum = filterLevel ? Number(filterLevel) : null;
+  const classSelected = Boolean(filterFacultyId && filterLevel);
 
   const classStudents = useMemo(() => {
-    if (!classSelected) return []
+    if (!classSelected) return [];
     return dummyClassRoster.filter(
       (s) =>
         s.admission.facultyId === filterFacultyId &&
         s.enrollment.status === "active" &&
-        s.enrollment.currentLevel === levelNum
-    )
-  }, [classSelected, filterFacultyId, filterLevel, levelNum])
+        s.enrollment.currentLevel === levelNum,
+    );
+  }, [classSelected, filterFacultyId, levelNum]);
 
   const generalForClass = useMemo(() => {
-    const map = new Map()
+    const map = new Map();
     generalAttendance
       .filter((a) => a.facultyId === filterFacultyId && a.level === levelNum)
-      .forEach((a) => map.set(a.studentId, a))
-    return map
-  }, [generalAttendance, filterFacultyId, levelNum])
+      .forEach((a) => map.set(a.studentId, a));
+    return map;
+  }, [generalAttendance, filterFacultyId, levelNum]);
 
   const subjectsForClass = useMemo(() => {
-    if (!classSelected) return []
+    if (!classSelected) return [];
     return dummySubjects.filter(
-      (s) => s.facultyId === filterFacultyId && s.level === levelNum
-    )
-  }, [classSelected, filterFacultyId, levelNum])
+      (s) => s.facultyId === filterFacultyId && s.level === levelNum,
+    );
+  }, [classSelected, filterFacultyId, levelNum]);
 
-  const selectedSubject = subjectsForClass.find((s) => s._id === selectedSubjectId)
+  const selectedSubject = subjectsForClass.find(
+    (s) => s._id === selectedSubjectId,
+  );
 
   const examSessionForDate = useMemo(
     () =>
@@ -409,10 +475,10 @@ export default function Attendance() {
           s.facultyId === filterFacultyId &&
           s.level === levelNum &&
           s.examDate === examDate &&
-          s.subjectId === selectedSubjectId
+          s.subjectId === selectedSubjectId,
       ),
-    [examSessions, filterFacultyId, levelNum, examDate, selectedSubjectId]
-  )
+    [examSessions, filterFacultyId, levelNum, examDate, selectedSubjectId],
+  );
 
   const examRecordsForDate = useMemo(
     () =>
@@ -421,53 +487,56 @@ export default function Attendance() {
           a.facultyId === filterFacultyId &&
           a.level === levelNum &&
           a.examDate === examDate &&
-          a.subjectId === selectedSubjectId
+          a.subjectId === selectedSubjectId,
       ),
-    [examAttendance, filterFacultyId, levelNum, examDate, selectedSubjectId]
-  )
+    [examAttendance, filterFacultyId, levelNum, examDate, selectedSubjectId],
+  );
 
   const buildExamChecksFromRecords = () => {
-    const checks = {}
+    const checks = {};
     classStudents.forEach((s) => {
-      const rec = examRecordsForDate.find((r) => r.studentId === s._id)
-      checks[s._id] = rec ? rec.present : false
-    })
-    return checks
-  }
+      const rec = examRecordsForDate.find((r) => r.studentId === s._id);
+      checks[s._id] = rec ? rec.present : false;
+    });
+    return checks;
+  };
 
-  useEffect(() => {
-    if (subjectsForClass.length && !subjectsForClass.find((s) => s._id === selectedSubjectId)) {
-      setSelectedSubjectId(subjectsForClass[0]._id)
-    }
-  }, [subjectsForClass, selectedSubjectId])
+  const getExamChecksFor = (facultyId, levelNumber, date, subjectId) => {
+    if (!facultyId || !levelNumber || !date || !subjectId) return {};
+    const records = examAttendance.filter(
+      (a) =>
+        a.facultyId === facultyId &&
+        a.level === levelNumber &&
+        a.examDate === date &&
+        a.subjectId === subjectId,
+    );
+    const checks = {};
+    dummyClassRoster
+      .filter(
+        (s) =>
+          s.admission.facultyId === facultyId &&
+          s.enrollment.status === "active" &&
+          s.enrollment.currentLevel === levelNumber,
+      )
+      .forEach((s) => {
+        const rec = records.find((r) => r.studentId === s._id);
+        checks[s._id] = rec ? rec.present : false;
+      });
+    return checks;
+  };
 
-  useEffect(() => {
-    if (category === "exam" && classSelected && classStudents.length) {
-      setExamChecks(buildExamChecksFromRecords())
-    }
-  }, [
-    category,
-    classSelected,
-    examDate,
-    filterFacultyId,
-    filterLevel,
-    selectedSubjectId,
-    examAttendance,
-    classStudents.length,
-  ])
-
-  const handleCategoryExam = () => setCategory("exam")
+  const handleCategoryExam = () => setCategory("exam");
 
   const classStats = useMemo(() => {
-    if (!classStudents.length) return null
+    if (!classStudents.length) return null;
     const genPercents = classStudents.map((s) => {
-      const g = generalForClass.get(s._id)
-      return g?.summary?.percentage ?? 0
-    })
+      const g = generalForClass.get(s._id);
+      return g?.summary?.percentage ?? 0;
+    });
     const avgGeneral =
-      genPercents.reduce((a, b) => a + b, 0) / (genPercents.length || 1)
-    const examPresent = examRecordsForDate.filter((r) => r.present).length
-    const examTotal = classStudents.length
+      genPercents.reduce((a, b) => a + b, 0) / (genPercents.length || 1);
+    const examPresent = examRecordsForDate.filter((r) => r.present).length;
+    const examTotal = classStudents.length;
     return {
       studentCount: classStudents.length,
       avgGeneral: avgGeneral.toFixed(1),
@@ -475,25 +544,27 @@ export default function Attendance() {
       examPresent,
       examRate:
         examTotal > 0 ? ((examPresent / examTotal) * 100).toFixed(1) : "—",
-    }
-  }, [classStudents, generalForClass, examRecordsForDate])
+    };
+  }, [classStudents, generalForClass, examRecordsForDate]);
 
   const pastExamDates = useMemo(
     () =>
       examSessions
         .filter((s) => s.facultyId === filterFacultyId && s.level === levelNum)
         .sort((a, b) => b.examDate.localeCompare(a.examDate)),
-    [examSessions, filterFacultyId, levelNum]
-  )
+    [examSessions, filterFacultyId, levelNum],
+  );
 
   const handleSaveExamAttendance = () => {
-    if (!classSelected || !examDate || !selectedSubjectId) return
+    if (!classSelected || !examDate || !selectedSubjectId) return;
     if (!selectedSubject) {
-      setSaveMessage("Select a subject registered for this class (add in Academics → Subjects).")
-      return
+      setSaveMessage(
+        "Select a subject registered for this class (add in Academics → Subjects).",
+      );
+      return;
     }
 
-    let session = examSessionForDate
+    let session = examSessionForDate;
     if (!session) {
       session = {
         _id: `exs_${Date.now()}`,
@@ -506,11 +577,11 @@ export default function Attendance() {
         subjectCode: selectedSubject.code,
         createdBy: { role: "admin", adminId: "admin_001" },
         createdAt: new Date().toISOString(),
-      }
-      setExamSessions([...examSessions, session])
+      };
+      setExamSessions([...examSessions, session]);
     }
 
-    const now = new Date().toISOString()
+    const now = new Date().toISOString();
     const withoutThisDate = examAttendance.filter(
       (a) =>
         !(
@@ -518,8 +589,8 @@ export default function Attendance() {
           a.level === levelNum &&
           a.examDate === examDate &&
           a.subjectId === selectedSubjectId
-        )
-    )
+        ),
+    );
 
     const newRecords = classStudents.map((s) => ({
       _id: `att_ex_${s._id}_${examDate}_${selectedSubjectId}`,
@@ -533,29 +604,117 @@ export default function Attendance() {
       present: Boolean(examChecks[s._id]),
       markedBy: { role: "admin", adminId: "admin_001" },
       markedAt: now,
-    }))
+    }));
 
-    setExamAttendance([...withoutThisDate, ...newRecords])
-    setSaveMessage(`Exam attendance saved for ${examDate}. (UI demo — API later.)`)
-    setTimeout(() => setSaveMessage(""), 4000)
-  }
+    setExamAttendance([...withoutThisDate, ...newRecords]);
+    setSaveMessage(
+      `Exam attendance saved for ${examDate}. (UI demo — API later.)`,
+    );
+    setTimeout(() => setSaveMessage(""), 4000);
+  };
 
   const toggleAllExamPresent = (value) => {
-    const checks = {}
+    const checks = {};
     classStudents.forEach((s) => {
-      checks[s._id] = value
-    })
-    setExamChecks(checks)
-  }
+      checks[s._id] = value;
+    });
+    setExamChecks(checks);
+  };
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Attendance</h1>
-        <p className="mt-1 text-gray-600">
-          View general class attendance (teacher-marked) and mark exam-day attendance (admin)
-        </p>
+      <div className="flex flex-wrap justify-between items-start gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Attendance</h1>
+          <p className="mt-1 text-gray-600">
+            View general class attendance (teacher-marked) and mark exam-day
+            attendance (admin)
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowHolidayPanel(!showHolidayPanel)}
+        >
+          <CalendarX className="w-4 h-4 inline mr-1" />
+          {showHolidayPanel ? "Hide Holidays" : "Manage Holidays"}
+        </Button>
       </div>
+
+      {/* Holiday Management Panel */}
+      {showHolidayPanel && (
+        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+          <h2 className="mb-4 text-lg font-bold text-gray-900 flex items-center gap-2">
+            <CalendarX className="w-5 h-5" />
+            Holiday Management
+          </h2>
+          <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-900">
+              <strong>Weekends (Saturday & Sunday)</strong> are automatically
+              marked as holidays. You can add additional public holidays below.
+            </p>
+          </div>
+
+          <div className="mb-6">
+            <h3 className="font-semibold text-gray-900 mb-3">
+              Add Custom Holiday
+            </h3>
+            <div className="flex gap-3">
+              <input
+                type="date"
+                className={inputClass}
+                value={newHolidayDate}
+                onChange={(e) => setNewHolidayDate(e.target.value)}
+              />
+              <Button variant="primary" onClick={handleAddHoliday}>
+                <Plus className="w-4 h-4 inline mr-1" />
+                Add Holiday
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-gray-900 mb-3">All Holidays</h3>
+            <div className="space-y-2">
+              {/* Show weekends info */}
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                <p className="text-sm font-medium text-gray-700">
+                  Weekends: Every Saturday and Sunday
+                </p>
+              </div>
+
+              {/* Custom holidays */}
+              {customHolidays.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  No custom holidays added.
+                </p>
+              ) : (
+                customHolidays.map((date) => (
+                  <div
+                    key={date}
+                    className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg"
+                  >
+                    <div className="flex items-center gap-2">
+                      <CalendarX className="w-4 h-4 text-amber-600" />
+                      <span className="font-medium text-gray-900">{date}</span>
+                      <span className="text-xs text-gray-600">
+                        (Custom Holiday)
+                      </span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRemoveHoliday(date)}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Class selector */}
       <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
@@ -567,14 +726,19 @@ export default function Attendance() {
               className={selectClass}
               value={filterFacultyId}
               onChange={(e) => {
-                setFilterFacultyId(e.target.value)
-                setFilterLevel("")
+                const newFacultyId = e.target.value;
+                setFilterFacultyId(newFacultyId);
+                setFilterLevel("");
+                setSelectedSubjectId("");
+                setExamChecks({});
+                setSaveMessage("");
               }}
             >
               <option value="">Choose faculty</option>
               {dummyFaculties.map((f) => (
                 <option key={f._id} value={f._id}>
-                  {f.code} — {f.structureType === "semester" ? "Semester" : "Year"} based
+                  {f.code} —{" "}
+                  {f.structureType === "semester" ? "Semester" : "Year"} based
                 </option>
               ))}
             </select>
@@ -586,7 +750,18 @@ export default function Attendance() {
             <select
               className={selectClass}
               value={filterLevel}
-              onChange={(e) => setFilterLevel(e.target.value)}
+              onChange={(e) => {
+                const newLevel = e.target.value;
+                setFilterLevel(newLevel);
+                setSaveMessage("");
+                const newLevelNum = Number(newLevel);
+                const newSubjects = dummySubjects.filter(
+                  (s) =>
+                    s.facultyId === filterFacultyId && s.level === newLevelNum,
+                );
+                setSelectedSubjectId(newSubjects[0]?._id || "");
+                setExamChecks({});
+              }}
               disabled={!filterFacultyId}
             >
               <option value="">Choose level</option>
@@ -601,7 +776,8 @@ export default function Attendance() {
         {classSelected && filterFaculty && (
           <p className="mt-3 text-sm text-gray-600">
             Showing: <strong>{filterFaculty.code}</strong> ·{" "}
-            {getLevelLabel(filterFaculty.structureType, levelNum)} · Batch students
+            {getLevelLabel(filterFaculty.structureType, levelNum)} · Batch
+            students
           </p>
         )}
       </div>
@@ -609,7 +785,9 @@ export default function Attendance() {
       {!classSelected && (
         <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 py-16 text-center">
           <GraduationCap className="mx-auto mb-3 h-12 w-12 text-gray-400" />
-          <p className="text-gray-600">Select a faculty and level to view attendance.</p>
+          <p className="text-gray-600">
+            Select a faculty and level to view attendance.
+          </p>
         </div>
       )}
 
@@ -634,7 +812,9 @@ export default function Attendance() {
                   <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
                     {stat.label}
                   </p>
-                  <p className="mt-1 text-2xl font-bold text-gray-900">{stat.value}</p>
+                  <p className="mt-1 text-2xl font-bold text-gray-900">
+                    {stat.value}
+                  </p>
                 </div>
               ))}
             </div>
@@ -674,8 +854,9 @@ export default function Attendance() {
               <div className="flex gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
                 <Info className="h-5 w-5 shrink-0" />
                 <p>
-                  <strong>General attendance</strong> is recorded by teachers during regular class
-                  days. Admins can view summaries and daily logs only — no editing on this page.
+                  <strong>General attendance</strong> is recorded by teachers
+                  during regular class days. Admins can view summaries and daily
+                  logs only — no editing on this page.
                 </p>
               </div>
 
@@ -689,8 +870,12 @@ export default function Attendance() {
                     <table className="w-full min-w-[720px] text-left text-sm">
                       <thead className="border-b border-gray-200 bg-gray-50">
                         <tr>
-                          <th className="px-4 py-3 font-semibold text-gray-700">Student</th>
-                          <th className="px-4 py-3 font-semibold text-gray-700">Student ID</th>
+                          <th className="px-4 py-3 font-semibold text-gray-700">
+                            Student
+                          </th>
+                          <th className="px-4 py-3 font-semibold text-gray-700">
+                            Student ID
+                          </th>
                           <th className="px-4 py-3 font-semibold text-gray-700 text-center">
                             Present
                           </th>
@@ -698,39 +883,36 @@ export default function Attendance() {
                             Absent
                           </th>
                           <th className="px-4 py-3 font-semibold text-gray-700 text-center">
-                            Late
-                          </th>
-                          <th className="px-4 py-3 font-semibold text-gray-700 text-center">
                             %
                           </th>
-                          <th className="px-4 py-3 font-semibold text-gray-700">Recent logs</th>
+                          <th className="px-4 py-3 font-semibold text-gray-700">
+                            Recent logs
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
                         {classStudents.map((s) => {
-                          const att = generalForClass.get(s._id)
+                          const att = generalForClass.get(s._id);
                           const sum = att?.summary ?? {
                             present: 0,
                             absent: 0,
-                            late: 0,
                             percentage: 0,
-                          }
-                          const expanded = expandedStudentId === s._id
+                          };
+                          const expanded = expandedStudentId === s._id;
                           return (
                             <Fragment key={s._id}>
                               <tr className="border-b border-gray-100 hover:bg-gray-50">
                                 <td className="px-4 py-3 font-medium text-gray-900">
                                   {fullName(s.profile)}
                                 </td>
-                                <td className="px-4 py-3 text-gray-600">{s.studentId}</td>
+                                <td className="px-4 py-3 text-gray-600">
+                                  {s.studentId}
+                                </td>
                                 <td className="px-4 py-3 text-center text-green-700 font-medium">
                                   {sum.present}
                                 </td>
                                 <td className="px-4 py-3 text-center text-red-700 font-medium">
                                   {sum.absent}
-                                </td>
-                                <td className="px-4 py-3 text-center text-amber-700 font-medium">
-                                  {sum.late}
                                 </td>
                                 <td className="px-4 py-3 text-center">
                                   <span
@@ -749,20 +931,27 @@ export default function Attendance() {
                                   <button
                                     type="button"
                                     onClick={() =>
-                                      setExpandedStudentId(expanded ? null : s._id)
+                                      setExpandedStudentId(
+                                        expanded ? null : s._id,
+                                      )
                                     }
                                     className="text-sm font-semibold text-blue-600 hover:text-blue-800"
                                   >
-                                    {expanded ? "Hide" : "View"} ({att?.records?.length ?? 0})
+                                    {expanded ? "Hide" : "View"} (
+                                    {att?.records?.length ?? 0})
                                   </button>
                                 </td>
                               </tr>
                               {expanded && (
                                 <tr key={`${s._id}-detail`}>
-                                  <td colSpan={7} className="bg-gray-50 px-4 py-3">
+                                  <td
+                                    colSpan={7}
+                                    className="bg-gray-50 px-4 py-3"
+                                  >
                                     {!att?.records?.length ? (
                                       <p className="text-sm text-gray-500">
-                                        No daily logs yet (teacher module will add these).
+                                        No daily logs yet (teacher module will
+                                        add these).
                                       </p>
                                     ) : (
                                       <ul className="space-y-2">
@@ -791,7 +980,7 @@ export default function Attendance() {
                                 </tr>
                               )}
                             </Fragment>
-                          )
+                          );
                         })}
                       </tbody>
                     </table>
@@ -807,10 +996,10 @@ export default function Attendance() {
               <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                 <Info className="h-5 w-5 shrink-0" />
                 <p>
-                  <strong>Exam attendance</strong> is marked by admin on dates when examinations
-                  are held. 
+                  <strong>Exam attendance</strong> is marked by admin on dates
+                  when examinations are held.
                 </p>
-             {/*    Stored as type: exam
+                {/*    Stored as type: exam
                   for student performance reports (separate from general class attendance). */}
               </div>
 
@@ -824,8 +1013,17 @@ export default function Attendance() {
                       className={inputClass}
                       value={examDate}
                       onChange={(e) => {
-                        setExamDate(e.target.value)
-                        setSaveMessage("")
+                        const newDate = e.target.value;
+                        setExamDate(newDate);
+                        setSaveMessage("");
+                        setExamChecks(
+                          getExamChecksFor(
+                            filterFacultyId,
+                            levelNum,
+                            newDate,
+                            selectedSubjectId,
+                          ),
+                        );
                       }}
                     />
                   </div>
@@ -842,15 +1040,25 @@ export default function Attendance() {
                     <label className={labelClass}>Subject</label>
                     {subjectsForClass.length === 0 ? (
                       <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                        No subjects for this class. Add them in Academics → Subjects.
+                        No subjects for this class. Add them in Academics →
+                        Subjects.
                       </p>
                     ) : (
                       <select
                         className={selectClass}
                         value={selectedSubjectId}
                         onChange={(e) => {
-                          setSelectedSubjectId(e.target.value)
-                          setSaveMessage("")
+                          const newSubjectId = e.target.value;
+                          setSelectedSubjectId(newSubjectId);
+                          setSaveMessage("");
+                          setExamChecks(
+                            getExamChecksFor(
+                              filterFacultyId,
+                              levelNum,
+                              examDate,
+                              newSubjectId,
+                            ),
+                          );
                         }}
                       >
                         {subjectsForClass.map((sub) => (
@@ -862,15 +1070,17 @@ export default function Attendance() {
                     )}
                     {selectedSubject?.assignedTeacher && (
                       <p className="mt-1 text-xs text-gray-500">
-                        Class teacher: {selectedSubject.assignedTeacher.fullName}
+                        Class teacher:{" "}
+                        {selectedSubject.assignedTeacher.fullName}
                       </p>
                     )}
                   </div>
                 </div>
                 {examSessionForDate && (
                   <p className="text-sm text-green-700 font-medium">
-                    Existing session: {examSessionForDate.title} — {examSessionForDate.subjectName}{" "}
-                    ({examSessionForDate.subjectCode})
+                    Existing session: {examSessionForDate.title} —{" "}
+                    {examSessionForDate.subjectName} (
+                    {examSessionForDate.subjectCode})
                   </p>
                 )}
                 <div className="flex flex-wrap gap-2">
@@ -881,10 +1091,18 @@ export default function Attendance() {
                   >
                     Load saved for this date
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => toggleAllExamPresent(true)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toggleAllExamPresent(true)}
+                  >
                     Mark all present
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => toggleAllExamPresent(false)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toggleAllExamPresent(false)}
+                  >
                     Clear all
                   </Button>
                 </div>
@@ -903,14 +1121,20 @@ export default function Attendance() {
                           <th className="px-4 py-3 font-semibold text-gray-700 w-12 text-center">
                             Present
                           </th>
-                          <th className="px-4 py-3 font-semibold text-gray-700">Student</th>
-                          <th className="px-4 py-3 font-semibold text-gray-700">Student ID</th>
-                          <th className="px-4 py-3 font-semibold text-gray-700">Status</th>
+                          <th className="px-4 py-3 font-semibold text-gray-700">
+                            Student
+                          </th>
+                          <th className="px-4 py-3 font-semibold text-gray-700">
+                            Student ID
+                          </th>
+                          <th className="px-4 py-3 font-semibold text-gray-700">
+                            Status
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
                         {classStudents.map((s) => {
-                          const checked = Boolean(examChecks[s._id])
+                          const checked = Boolean(examChecks[s._id]);
                           return (
                             <tr
                               key={s._id}
@@ -935,20 +1159,24 @@ export default function Attendance() {
                               <td className="px-4 py-3 font-medium text-gray-900">
                                 {fullName(s.profile)}
                               </td>
-                              <td className="px-4 py-3 text-gray-600">{s.studentId}</td>
+                              <td className="px-4 py-3 text-gray-600">
+                                {s.studentId}
+                              </td>
                               <td className="px-4 py-3">
                                 {checked ? (
                                   <span className="inline-flex items-center gap-1 text-green-700 font-medium">
-                                    <CheckCircle2 className="h-4 w-4" /> Present at exam
+                                    <CheckCircle2 className="h-4 w-4" /> Present
+                                    at exam
                                   </span>
                                 ) : (
                                   <span className="inline-flex items-center gap-1 text-red-600 font-medium">
-                                    <XCircle className="h-4 w-4" /> Absent at exam
+                                    <XCircle className="h-4 w-4" /> Absent at
+                                    exam
                                   </span>
                                 )}
                               </td>
                             </tr>
-                          )
+                          );
                         })}
                       </tbody>
                     </table>
@@ -958,7 +1186,10 @@ export default function Attendance() {
                       {Object.values(examChecks).filter(Boolean).length} of{" "}
                       {classStudents.length} marked present
                     </p>
-                    <Button variant="primary" onClick={handleSaveExamAttendance}>
+                    <Button
+                      variant="primary"
+                      onClick={handleSaveExamAttendance}
+                    >
                       Save exam attendance
                     </Button>
                   </div>
@@ -974,13 +1205,15 @@ export default function Attendance() {
               {/* Past exam dates */}
               {pastExamDates.length > 0 && (
                 <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-                  <h3 className="mb-4 font-bold text-gray-900">Past exam sessions (this class)</h3>
+                  <h3 className="mb-4 font-bold text-gray-900">
+                    Past exam sessions (this class)
+                  </h3>
                   <ul className="space-y-3">
                     {pastExamDates.map((ex) => {
                       const records = examAttendance.filter(
-                        (a) => a.examSessionId === ex._id
-                      )
-                      const present = records.filter((r) => r.present).length
+                        (a) => a.examSessionId === ex._id,
+                      );
+                      const present = records.filter((r) => r.present).length;
                       return (
                         <li
                           key={ex._id}
@@ -996,23 +1229,32 @@ export default function Attendance() {
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="text-sm text-gray-700">
-                              {present}/{records.length || classStudents.length} present
+                              {present}/{records.length || classStudents.length}{" "}
+                              present
                             </span>
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => {
-                                setExamDate(ex.examDate)
-                                setExamTitle(ex.title)
-                                setSelectedSubjectId(ex.subjectId)
-                                setCategory("exam")
+                                setExamDate(ex.examDate);
+                                setExamTitle(ex.title);
+                                setSelectedSubjectId(ex.subjectId);
+                                setCategory("exam");
+                                setExamChecks(
+                                  getExamChecksFor(
+                                    filterFacultyId,
+                                    levelNum,
+                                    ex.examDate,
+                                    ex.subjectId,
+                                  ),
+                                );
                               }}
                             >
                               Open
                             </Button>
                           </div>
                         </li>
-                      )
+                      );
                     })}
                   </ul>
                 </div>
@@ -1022,5 +1264,5 @@ export default function Attendance() {
         </>
       )}
     </div>
-  )
+  );
 }
