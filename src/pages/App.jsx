@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import AdminLayout from "../layouts/AdminLayout"
+import TeacherLayout from "../layouts/TeacherLayout"
 import Dashboard from "./admin/Dashboard"
 import Academics from "./admin/Academics"
 import Exams from "./admin/Exams"
@@ -8,6 +9,10 @@ import Attendance from "./admin/Attendance"
 import StudentPerformance from "./admin/StudentPerformance"
 import ChangePassword from "./admin/ChangePassword"
 import NotFoundPage from "./NotFoundPage"
+import TeacherDashboard from "./teacher/Dashboard"
+import TeacherAttendance from "./teacher/Attendance"
+import TeacherMarks from "./teacher/Marks"
+import TeacherResources from "./teacher/Resources"
 
 function App() {
   return (
@@ -22,6 +27,13 @@ function App() {
           <Route path="attendance" element={<Attendance />} />
           <Route path="student-performance" element={<StudentPerformance />} />
           <Route path="change-password" element={<ChangePassword />} />
+        </Route>
+        <Route path="/teacher" element={<TeacherLayout />}>
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<TeacherDashboard />} />
+          <Route path="attendance" element={<TeacherAttendance />} />
+          <Route path="marks" element={<TeacherMarks />} />
+          <Route path="resources" element={<TeacherResources />} />
         </Route>
         <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="*" element={<NotFoundPage />} />
