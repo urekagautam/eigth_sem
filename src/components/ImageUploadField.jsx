@@ -10,6 +10,7 @@ export default function ImageUploadField({
   onFileSelect,
   onClear,
   error,
+  label = "Notice image",
 }) {
   const inputRef = useRef(null)
 
@@ -40,7 +41,7 @@ export default function ImageUploadField({
   return (
     <div className="space-y-2">
       <label className="block text-sm font-semibold text-gray-700">
-        Notice image <span className="text-red-500">*</span>
+        {label} <span className="text-red-500">*</span>
       </label>
 
       <input
@@ -76,7 +77,7 @@ export default function ImageUploadField({
           <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-gray-100">
             <img
               src={previewUrl}
-              alt={file?.name ? `Preview: ${file.name}` : "Selected notice image"}
+              alt={file?.name ? `Preview: ${file.name}` : `Selected ${label.toLowerCase()}`}
               className="max-h-72 w-full object-contain"
             />
             <button
