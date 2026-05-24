@@ -13,6 +13,7 @@ import TeacherDashboard from "./teacher/Dashboard";
 import TeacherAttendance from "./teacher/Attendance";
 import TeacherMarks from "./teacher/Marks";
 import TeacherResources from "./teacher/Resources";
+import Login from "./auth/Login";
 
 function App() {
   return (
@@ -35,7 +36,8 @@ function App() {
           <Route path="marks" element={<TeacherMarks />} />
           <Route path="resources" element={<TeacherResources />} />
         </Route>
-        <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/" element={<Login />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>
