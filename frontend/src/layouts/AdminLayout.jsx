@@ -1,5 +1,5 @@
-import { Outlet, useNavigate, useLocation } from "react-router-dom"
-import { useState } from "react"
+import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { useState } from "react";
 import {
   Menu,
   X,
@@ -11,7 +11,7 @@ import {
   UserCheck,
   TrendingUp,
   KeyRound,
-} from "lucide-react"
+} from "lucide-react";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/admin/dashboard" },
@@ -19,18 +19,22 @@ const menuItems = [
   { icon: ClipboardList, label: "Exams", path: "/admin/exams" },
   { icon: Megaphone, label: "Notices", path: "/admin/notices" },
   { icon: UserCheck, label: "Attendance", path: "/admin/attendance" },
-  { icon: TrendingUp, label: "Student Performance", path: "/admin/student-performance" },
+  {
+    icon: TrendingUp,
+    label: "Result and Performance",
+    path: "/admin/student-performance",
+  },
   { icon: KeyRound, label: "Change Password", path: "/admin/change-password" },
-]
+];
 
 export default function AdminLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-  const navigate = useNavigate()
-  const location = useLocation()
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = () => {
-    navigate("/")
-  }
+    navigate("/");
+  };
 
   const navButtonClass = (isActive) =>
     [
@@ -39,7 +43,7 @@ export default function AdminLayout() {
       isActive
         ? "bg-blue-50 text-blue-600"
         : "hover:bg-blue-50/70 hover:text-blue-600",
-    ].join(" ")
+    ].join(" ");
 
   return (
     <div className="flex h-screen bg-gray-50 font-sans">
@@ -77,8 +81,10 @@ export default function AdminLayout() {
 
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
           {menuItems.map((item) => {
-            const Icon = item.icon
-            const isActive = location.pathname === item.path
+            const Icon = item.icon;
+            const isActive =
+              location.pathname === item.path ||
+              location.pathname.startsWith(`${item.path}/`);
             return (
               <button
                 key={item.path}
@@ -92,10 +98,12 @@ export default function AdminLayout() {
                   strokeWidth={isActive ? 2.25 : 2}
                 />
                 {sidebarOpen && (
-                  <span className="font-semibold text-sm truncate">{item.label}</span>
+                  <span className="font-semibold text-sm truncate">
+                    {item.label}
+                  </span>
                 )}
               </button>
-            )
+            );
           })}
         </nav>
 
@@ -109,7 +117,9 @@ export default function AdminLayout() {
             title={!sidebarOpen ? "Logout" : undefined}
           >
             <LogOut className="w-5 h-5 shrink-0" />
-            {sidebarOpen && <span className="font-semibold text-sm">Logout</span>}
+            {sidebarOpen && (
+              <span className="font-semibold text-sm">Logout</span>
+            )}
           </button>
         </div>
       </div>
@@ -120,5 +130,5 @@ export default function AdminLayout() {
         </div>
       </div>
     </div>
-  )
+  );
 }

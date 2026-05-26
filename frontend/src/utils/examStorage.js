@@ -1,8 +1,13 @@
-import { createSampleLayout, DEFAULT_SCHEDULE_HISTORY } from "../data/examDummyData";
+import {
+  createSampleLayout,
+  DEFAULT_SCHEDULE_HISTORY,
+} from "../data/examDummyData";
 
 const LAYOUTS_KEY = "eigth_sem_class_layouts";
 const SEAT_PLANS_KEY = "eigth_sem_seat_plans";
 const SCHEDULES_KEY = "eigth_sem_exam_schedules";
+const EXAM_MARKS_KEY = "eigth_sem_exam_marks";
+const EXAM_ATTENDANCE_KEY = "eigth_sem_exam_attendance";
 
 export function loadLayouts() {
   try {
@@ -47,4 +52,32 @@ export function loadExamSchedules() {
 
 export function saveExamSchedules(schedules) {
   localStorage.setItem(SCHEDULES_KEY, JSON.stringify(schedules));
+}
+
+export function loadExamMarks() {
+  try {
+    const raw = localStorage.getItem(EXAM_MARKS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {
+    /* ignore */
+  }
+  return [];
+}
+
+export function saveExamMarks(marks) {
+  localStorage.setItem(EXAM_MARKS_KEY, JSON.stringify(marks));
+}
+
+export function loadExamAttendance() {
+  try {
+    const raw = localStorage.getItem(EXAM_ATTENDANCE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {
+    /* ignore */
+  }
+  return [];
+}
+
+export function saveExamAttendance(attendance) {
+  localStorage.setItem(EXAM_ATTENDANCE_KEY, JSON.stringify(attendance));
 }
