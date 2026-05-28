@@ -5,36 +5,25 @@ import {
   X,
   LogOut,
   LayoutDashboard,
-  GraduationCap,
-  ClipboardList,
   Megaphone,
-  UserCheck,
-  TrendingUp,
-  KeyRound,
+  BookOpen,
+  ClipboardList,
 } from "lucide-react";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/admin/dashboard" },
-  { icon: GraduationCap, label: "Academics", path: "/admin/academics" },
-  { icon: ClipboardList, label: "Exams", path: "/admin/exams" },
-  { icon: Megaphone, label: "Notices", path: "/admin/notices" },
-  { icon: UserCheck, label: "Attendance", path: "/admin/attendance" },
-  {
-    icon: TrendingUp,
-    label: "Result and Performance",
-    path: "/admin/student-performance",
-  },
-  { icon: KeyRound, label: "Change Password", path: "/admin/change-password" },
+  { icon: LayoutDashboard, label: "Dashboard", path: "/student/dashboard" },
+  { icon: Megaphone, label: "Notices", path: "/student/notices" },
+  { icon: BookOpen, label: "Academics", path: "/student/academics" },
+  { icon: ClipboardList, label: "Attendance", path: "/student/attendance" },
+  { icon: BookOpen, label: "Resources", path: "/student/resources" },
 ];
 
-export default function AdminLayout() {
+export default function StudentLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleLogout = () => {
-    navigate("/");
-  };
+  const handleLogout = () => navigate("/");
 
   const navButtonClass = (isActive) =>
     [
@@ -48,27 +37,23 @@ export default function AdminLayout() {
   return (
     <div className="flex h-screen bg-gray-50 font-sans">
       <div
-        className={`${
-          sidebarOpen ? "w-64" : "w-[4.5rem]"
-        } bg-white border-r border-gray-200 transition-all duration-300 flex flex-col shadow-sm shrink-0`}
+        className={`${sidebarOpen ? "w-64" : "w-[4.5rem]"} bg-white border-r border-gray-200 transition-all duration-300 flex flex-col shadow-sm shrink-0`}
       >
         <div className="flex items-center justify-between p-5 border-b border-gray-200">
           {sidebarOpen && (
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-2xl flex items-center justify-center text-white font-bold text-lg shrink-0">
-                A
+              <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl flex items-center justify-center text-white font-bold text-lg shrink-0">
+                S
               </div>
               <span className="text-lg font-bold text-gray-800 truncate tracking-tight">
-                Admin
+                Student
               </span>
             </div>
           )}
           <button
             type="button"
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className={`p-2 hover:bg-gray-100 rounded-xl transition-colors shrink-0 ${
-              sidebarOpen ? "" : "mx-auto"
-            }`}
+            className={`p-2 hover:bg-gray-100 rounded-xl transition-colors shrink-0 ${sidebarOpen ? "" : "mx-auto"}`}
             aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
           >
             {sidebarOpen ? (
@@ -82,9 +67,7 @@ export default function AdminLayout() {
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
           {menuItems.map((item) => {
             const Icon = item.icon;
-            const isActive =
-              location.pathname === item.path ||
-              location.pathname.startsWith(`${item.path}/`);
+            const isActive = location.pathname === item.path;
             return (
               <button
                 key={item.path}
@@ -111,9 +94,7 @@ export default function AdminLayout() {
           <button
             type="button"
             onClick={handleLogout}
-            className={`w-full flex items-center rounded-xl text-red-500 hover:bg-red-50 transition-all ${
-              sidebarOpen ? "gap-3 px-4 py-3" : "justify-center p-3"
-            }`}
+            className={`w-full flex items-center rounded-xl text-red-500 hover:bg-red-50 transition-all ${sidebarOpen ? "gap-3 px-4 py-3" : "justify-center p-3"}`}
             title={!sidebarOpen ? "Logout" : undefined}
           >
             <LogOut className="w-5 h-5 shrink-0" />
