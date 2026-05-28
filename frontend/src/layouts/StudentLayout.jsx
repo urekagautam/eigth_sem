@@ -1,0 +1,115 @@
+import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { useState } from "react";
+import {
+  Menu,
+  X,
+  LogOut,
+  LayoutDashboard,
+  Megaphone,
+  BookOpen,
+  ClipboardList,
+} from "lucide-react";
+
+const menuItems = [
+  { icon: LayoutDashboard, label: "Dashboard", path: "/student/dashboard" },
+  { icon: Megaphone, label: "Notices", path: "/student/notices" },
+  { icon: BookOpen, label: "Academics", path: "/student/academics" },
+  { icon: ClipboardList, label: "Attendance", path: "/student/attendance" },
+  { icon: BookOpen, label: "Resources", path: "/student/resources" },
+];
+
+export default function StudentLayout() {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const handleLogout = () => navigate("/");
+
+  const navButtonClass = (isActive) =>
+    [
+      "w-full flex items-center rounded-xl text-gray-600 transition-all",
+      sidebarOpen ? "gap-3 px-4 py-3" : "justify-center p-3",
+      isActive
+        ? "bg-blue-50 text-blue-600"
+        : "hover:bg-blue-50/70 hover:text-blue-600",
+    ].join(" ");
+
+  return (
+    <div className="flex h-screen bg-gray-50 font-sans">
+      <div
+        className={`${sidebarOpen ? "w-64" : "w-[4.5rem]"} bg-white border-r border-gray-200 transition-all duration-300 flex flex-col shadow-sm shrink-0`}
+      >
+        <div className="flex items-center justify-between p-5 border-b border-gray-200">
+          {sidebarOpen && (
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl flex items-center justify-center text-white font-bold text-lg shrink-0">
+                S
+              </div>
+              <span className="text-lg font-bold text-gray-800 truncate tracking-tight">
+                Student
+              </span>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className={`p-2 hover:bg-gray-100 rounded-xl transition-colors shrink-0 ${sidebarOpen ? "" : "mx-auto"}`}
+            aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+          >
+            {sidebarOpen ? (
+              <X className="w-5 h-5 text-gray-500" />
+            ) : (
+              <Menu className="w-5 h-5 text-gray-500" />
+            )}
+          </button>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = location.pathname === item.path;
+            return (
+              <button
+                key={item.path}
+                type="button"
+                onClick={() => navigate(item.path)}
+                className={navButtonClass(isActive)}
+                title={!sidebarOpen ? item.label : undefined}
+              >
+                <Icon
+                  className="w-5 h-5 shrink-0"
+                  strokeWidth={isActive ? 2.25 : 2}
+                />
+                {sidebarOpen && (
+                  <span className="font-semibold text-sm truncate">
+                    {item.label}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="border-t border-gray-200 p-3">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className={`w-full flex items-center rounded-xl text-red-500 hover:bg-red-50 transition-all ${sidebarOpen ? "gap-3 px-4 py-3" : "justify-center p-3"}`}
+            title={!sidebarOpen ? "Logout" : undefined}
+          >
+            <LogOut className="w-5 h-5 shrink-0" />
+            {sidebarOpen && (
+              <span className="font-semibold text-sm">Logout</span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-auto min-w-0">
+        <div className="p-8">
+          <Outlet />
+        </div>
+      </div>
+    </div>
+  );
+}
