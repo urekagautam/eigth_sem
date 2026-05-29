@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import AdminLayout from "../layouts/AdminLayout";
 import TeacherLayout from "../layouts/TeacherLayout";
 import StudentLayout from "../layouts/StudentLayout";
+import Login from "./auth/Login";
 import Dashboard from "./admin/Dashboard";
 import Academics from "./admin/Academics";
 import Exams from "./admin/Exams";
@@ -53,6 +54,7 @@ function App() {
           <Route path="attendance" element={<StudentAttendance />} />
           <Route path="resources" element={<StudentResources />} />
         </Route>
+        <Route path="/login" element={<Login />} />
         <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

@@ -14,7 +14,8 @@ export const verifyJWT = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+    const secret = process.env.ACCESS_TOKEN_SECRET || "examify_secret";
+    const decoded = jwt.verify(token, secret);
 
     let user =
       (await Student.findById(decoded.id)) ||

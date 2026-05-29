@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { BookOpen } from "lucide-react"
 import Button from "../../components/Button"
+import { loginAdmin } from "../../services/apiAuth"
 
 const roles = [
   { value: "admin", label: "Admin" },
@@ -14,17 +15,35 @@ export default function Login() {
   const [role, setRole] = useState("admin")
   const [identifier, setIdentifier] = useState("")
   const [password, setPassword] = useState("")
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
+
     if (role === "admin") {
-      navigate("/admin/dashboard")
+      setError("")
+      setLoading(true)
+
+      try {
+        const response = await loginAdmin(identifier, password)
+        localStorage.setItem("examifyToken", response.data.token)
+        localStorage.setItem("examifyUser", JSON.stringify(response.data.user))
+        navigate("/admin/dashboard")
+      } catch (err) {
+        setError(err.message || "Login failed. Please check your credentials.")
+      } finally {
+        setLoading(false)
+      }
+
       return
     }
+
     if (role === "teacher") {
       navigate("/teacher/dashboard")
       return
     }
+
     navigate("/")
   }
 
@@ -96,8 +115,10 @@ export default function Login() {
               />
             </div>
 
-            <Button type="submit" variant="primary" size="lg" className="w-full">
-              Login
+            {error && <p className="text-sm text-red-600">{error}</p>}
+
+            <Button type="submit" variant="primary" size="lg" className="w-full" disabled={loading}>
+              {loading ? "Logging in..." : "Login"}
             </Button>
           </form>
         </div>
