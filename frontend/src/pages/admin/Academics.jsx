@@ -25,6 +25,7 @@ import {
   deleteFaculty,
 } from "../../services/apiFaculty";
 import StudentProfile from "./academics/StudentProfile";
+import BatchUpgradeTab from "./academics/BatchUpgradeTab";
 import {
   fetchStudents,
   createStudent as apiCreateStudent,
@@ -357,6 +358,7 @@ export default function Academics() {
   const [activeTab, setActiveTab] = useState("students");
   const [filterFacultyId, setFilterFacultyId] = useState("");
   const [filterLevel, setFilterLevel] = useState("");
+  const [filterBatch, setFilterBatch] = useState("");
 
   const [showAddStudent, setShowAddStudent] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
@@ -460,14 +462,6 @@ export default function Academics() {
   const [resetPasswordValue, setResetPasswordValue] = useState("");
   const [resetSuccess, setResetSuccess] = useState(false);
 
-  const [upgradeForm, setUpgradeForm] = useState({
-    facultyId: "",
-    fromLevel: "",
-    toLevel: "",
-    markAsGraduated: false,
-  });
-  const [upgradeNotice, setUpgradeNotice] = useState("");
-
   const [subjects, setSubjects] = useState(DUMMY_SUBJECTS);
   const [subjectFacultyId, setSubjectFacultyId] = useState("");
   const [subjectLevel, setSubjectLevel] = useState("");
@@ -494,6 +488,15 @@ export default function Academics() {
     () => getLevelOptions(filterFaculty),
     [filterFaculty],
   );
+  const batchOptions = useMemo(() => {
+    const batches = new Set();
+    students.forEach((student) => {
+      if (student.admission?.batch) {
+        batches.add(String(student.admission.batch));
+      }
+    });
+    return Array.from(batches).sort((a, b) => Number(b) - Number(a));
+  }, [students]);
 
   const classSubjects = useMemo(() => {
     if (!subjectFacultyId || !subjectLevel) return [];
@@ -596,6 +599,7 @@ export default function Academics() {
       if (s.enrollment.status === "graduated") return false;
       if (String(s.enrollment.currentLevel) !== filterLevel) return false;
     }
+    if (filterBatch && String(s.admission.batch) !== filterBatch) return false;
     return true;
   });
 
@@ -840,87 +844,6 @@ export default function Academics() {
       console.error("Failed to reset password:", error);
       alert(error.message || "Failed to reset password");
     }
-  };
-
-  const handleBatchUpgrade = () => {
-    setUpgradeNotice("");
-    const faculty = faculties.find((f) => f._id === upgradeForm.facultyId);
-    if (!faculty) {
-      setUpgradeNotice("Please select a faculty.");
-      return;
-    }
-
-    if (upgradeForm.markAsGraduated) {
-      setUpgradeNotice(
-        "UI preview: Graduated students are stored as FACULTY + BATCH only (no semester/year). Backend will enforce upgrade order.",
-      );
-      return;
-    }
-
-    if (!upgradeForm.fromLevel || !upgradeForm.toLevel) {
-      setUpgradeNotice("Select both current and target level.");
-      return;
-    }
-
-    const from = Number(upgradeForm.fromLevel);
-    const to = Number(upgradeForm.toLevel);
-    if (to <= from) {
-      setUpgradeNotice("Target level must be higher than current level.");
-      return;
-    }
-
-    if (to > from + 1) {
-      setUpgradeNotice(
-        "Upgrade higher semesters/years first. Example: move 5th → 6th before 3rd → 4th. (Backend rule — shown for UI only.)",
-      );
-      return;
-    }
-
-    setStudents(
-      students.map((s) => {
-        if (
-          s.admission.facultyId !== faculty._id ||
-          s.enrollment.status !== "active" ||
-          s.enrollment.currentLevel !== from
-        ) {
-          return s;
-        }
-        const isFinal = to >= faculty.maxLevel;
-        if (isFinal) {
-          return {
-            ...s,
-            enrollment: {
-              status: "graduated",
-              structureType: faculty.structureType,
-              currentLevel: null,
-              currentLevelLabel: null,
-              currentClass: null,
-            },
-            graduation: {
-              facultyId: faculty._id,
-              facultyCode: faculty.code,
-              facultyName: faculty.name,
-              batch: s.admission.batch,
-              graduatedAt: new Date().toISOString(),
-            },
-            updatedAt: new Date().toISOString(),
-          };
-        }
-        return {
-          ...s,
-          enrollment: {
-            ...s.enrollment,
-            currentLevel: to,
-            currentLevelLabel: getLevelLabel(faculty.structureType, to),
-            currentClass: `${faculty.code} — ${getLevelLabel(faculty.structureType, to)} — Batch ${s.admission.batch}`,
-          },
-          updatedAt: new Date().toISOString(),
-        };
-      }),
-    );
-    setUpgradeNotice(
-      `Upgraded ${faculty.code} students from ${getLevelLabel(faculty.structureType, from)} to ${getLevelLabel(faculty.structureType, to)}. (Local UI demo.)`,
-    );
   };
 
   const Field = ({ label, children, optional }) => (
@@ -1261,6 +1184,7 @@ export default function Academics() {
                 onChange={(e) => {
                   setFilterFacultyId(e.target.value);
                   setFilterLevel("");
+                  setFilterBatch("");
                 }}
               >
                 <option value="">All faculties</option>
@@ -1279,13 +1203,32 @@ export default function Academics() {
               <select
                 className={selectClass}
                 value={filterLevel}
-                onChange={(e) => setFilterLevel(e.target.value)}
+                onChange={(e) => {
+                  setFilterLevel(e.target.value);
+                  setFilterBatch("");
+                }}
                 disabled={!filterFacultyId}
               >
                 <option value="">Select an option</option>
                 {levelOptions.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1 min-w-45">
+              <label className={labelClass}>Batch</label>
+              <select
+                className={selectClass}
+                value={filterBatch}
+                onChange={(e) => setFilterBatch(e.target.value)}
+                disabled={!filterFacultyId || !filterLevel}
+              >
+                <option value="">Select batch</option>
+                {batchOptions.map((batch) => (
+                  <option key={batch} value={batch}>
+                    Batch {batch}
                   </option>
                 ))}
               </select>
@@ -1356,7 +1299,13 @@ export default function Academics() {
             {!filterFacultyId || !filterLevel ? (
               <div className="text-center py-12 bg-white border border-gray-200 rounded-lg">
                 <p className="text-gray-600">
-                  Please select the respective faculty and sem/year to see the student list.
+                  Please select the respective faculty and sem/year to choose a batch.
+                </p>
+              </div>
+            ) : !filterBatch ? (
+              <div className="text-center py-12 bg-white border border-gray-200 rounded-lg">
+                <p className="text-gray-600">
+                  Please select a batch to see students from only that batch.
                 </p>
               </div>
             ) : filteredStudents.length === 0 ? (
@@ -1657,129 +1606,14 @@ export default function Academics() {
       )}
       {/* ─── Batch upgrade tab ─── */}
       {activeTab === "upgrade" && (
-        <div className="bg-white border border-gray-200 rounded-lg p-8 space-y-6">
-          <h2 className="text-xl font-bold text-gray-900">
-            Semester / Year Batch Upgrade
-          </h2>
-          {/*   <p className="text-sm text-gray-600">
-            Upgrade an entire class to the next semester or year. After final level, students move
-            to graduated status (faculty + batch only).
-          </p> */}
-
-          <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
-            Upgrade an entire class to the next semester or year. After final
-            level, students move to graduated status (faculty + batch only).
-          </div>
-          {/*         Higher levels must be upgraded before lower ones can advance (e.g. 7th before 5th). This
-            rule will be enforced by the backend — this, for ref !!*/}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Field label="Faculty">
-              <select
-                className={selectClass}
-                value={upgradeForm.facultyId}
-                onChange={(e) =>
-                  setUpgradeForm({
-                    ...upgradeForm,
-                    facultyId: e.target.value,
-                    fromLevel: "",
-                    toLevel: "",
-                  })
-                }
-              >
-                <option value="">Select faculty</option>
-                {faculties.map((f) => (
-                  <option key={f._id} value={f._id}>
-                    {f.code} ({f.structureType})
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label=" ">
-              <label className="flex items-center gap-2 mt-8 cursor-pointer text-sm font-medium text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={upgradeForm.markAsGraduated}
-                  onChange={(e) =>
-                    setUpgradeForm({
-                      ...upgradeForm,
-                      markAsGraduated: e.target.checked,
-                    })
-                  }
-                  className="w-4 h-4"
-                />
-                Mark selected batch as graduated (faculty + batch only)
-              </label>
-            </Field>
-            {!upgradeForm.markAsGraduated && (
-              <>
-                <Field
-                  label={
-                    faculties.find((f) => f._id === upgradeForm.facultyId)
-                      ?.structureType === "year"
-                      ? "From year"
-                      : "From semester"
-                  }
-                >
-                  <select
-                    className={selectClass}
-                    value={upgradeForm.fromLevel}
-                    onChange={(e) =>
-                      setUpgradeForm({
-                        ...upgradeForm,
-                        fromLevel: e.target.value,
-                      })
-                    }
-                    disabled={!upgradeForm.facultyId}
-                  >
-                    <option value="">Current level</option>
-                    {getLevelOptions(
-                      faculties.find((f) => f._id === upgradeForm.facultyId),
-                    ).map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="To level">
-                  <select
-                    className={selectClass}
-                    value={upgradeForm.toLevel}
-                    onChange={(e) =>
-                      setUpgradeForm({
-                        ...upgradeForm,
-                        toLevel: e.target.value,
-                      })
-                    }
-                    disabled={!upgradeForm.fromLevel}
-                  >
-                    <option value="">Target level</option>
-                    {getLevelOptions(
-                      faculties.find((f) => f._id === upgradeForm.facultyId),
-                    )
-                      .filter((o) => o.value > Number(upgradeForm.fromLevel))
-                      .map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                  </select>
-                </Field>
-              </>
-            )}
-          </div>
-
-          {upgradeNotice && (
-            <p className="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-800">
-              {upgradeNotice}
-            </p>
-          )}
-
-          <Button variant="primary" onClick={handleBatchUpgrade}>
-            Apply batch upgrade
-          </Button>
-        </div>
+        <BatchUpgradeTab
+          faculties={faculties}
+          onComplete={() => {
+            setStudents([]);
+            setFilterLevel("");
+            setFilterBatch("");
+          }}
+        />
       )}
 
       {/* ─── Subjects tab ─── */}
