@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import { Student } from "../models/student.model.js";
 import { Faculty } from "../models/faculty.model.js";
+import { ClassOffering } from "../models/classOffering.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
@@ -24,7 +25,8 @@ const normalizeStudent = (student) => {
     return struct === "semester" ? `${name} Semester` : `${name} Year`;
   };
 
-  const levelLabel = student.current_level ? getLevelLabel(structureType, student.current_level) : "";
+  const isGraduated = student.academic_status === "graduated";
+  const levelLabel = !isGraduated && student.current_level ? getLevelLabel(structureType, student.current_level) : "";
   const currentClass = student.current_level
     ? `${facultyCode} — ${levelLabel} — Batch ${student.admitted_batch}`
     : "";
@@ -59,12 +61,23 @@ const normalizeStudent = (student) => {
       batch: String(student.admitted_batch),
     },
     enrollment: {
-      status: student.isActive ? "active" : "inactive",
+      status: isGraduated ? "graduated" : student.isActive ? "active" : "inactive",
       structureType,
-      currentLevel: student.current_level,
-      currentLevelLabel: levelLabel,
-      currentClass,
+      currentLevel: isGraduated ? null : student.current_level,
+      currentLevelLabel: isGraduated ? null : levelLabel,
+      currentClass: isGraduated ? null : currentClass,
     },
+    graduation: isGraduated
+      ? {
+          facultyId: facultyIdStr,
+          facultyCode,
+          facultyName,
+          batch: String(student.admitted_batch),
+          graduatedAt: student.updatedAt || student.createdAt,
+        }
+      : null,
+    academic_status: student.academic_status,
+    isActive: student.isActive,
     credentials: {
       username: student.username,
       hasPassword: !!student.password,
@@ -190,8 +203,8 @@ export const createStudent = async (req, res, next) => {
 // Get Students (with faculty/level filters)
 export const getStudents = async (req, res, next) => {
   try {
-    const { facultyId, level } = req.query;
-    const filter = { isActive: true };
+    const { facultyId, level, batch } = req.query;
+    const filter = { isActive: true, academic_status: { $ne: "graduated" } };
 
     if (facultyId) {
       // Convert string to MongoDB ObjectId
@@ -200,11 +213,116 @@ export const getStudents = async (req, res, next) => {
     if (level) {
       filter.current_level = Number(level);
     }
+    if (batch) {
+      filter.admitted_batch = Number(batch);
+    }
 
     const students = await Student.find(filter).populate("facultyId").sort({ createdAt: -1 });
     const formatted = students.map(normalizeStudent);
 
     res.status(200).json(new ApiResponse(200, formatted, "Students retrieved successfully"));
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const batchUpgradeStudents = async (req, res, next) => {
+  try {
+    const { facultyId, batch, fromLevel, toLevel, markAsGraduated } = req.body;
+
+    if (!facultyId || !mongoose.Types.ObjectId.isValid(facultyId)) {
+      throw new ApiError(400, "Valid faculty is required");
+    }
+
+    const admittedBatch = Number(batch);
+    const sourceLevel = Number(fromLevel);
+
+    if (!admittedBatch) {
+      throw new ApiError(400, "Batch is required");
+    }
+
+    if (!sourceLevel) {
+      throw new ApiError(400, "Current semester/year is required");
+    }
+
+    const faculty = await Faculty.findOne({
+      _id: facultyId,
+      isDeleted: { $ne: true },
+    });
+
+    if (!faculty) {
+      throw new ApiError(404, "Faculty not found");
+    }
+
+    if (sourceLevel < 1 || sourceLevel > faculty.max_level) {
+      throw new ApiError(400, "Current level is outside this faculty structure");
+    }
+
+    const shouldGraduate = Boolean(markAsGraduated);
+    const targetLevel = Number(toLevel) || sourceLevel + 1;
+
+    if (!shouldGraduate) {
+      if (targetLevel !== sourceLevel + 1) {
+        throw new ApiError(400, "Students can only be upgraded to the next level");
+      }
+
+      if (targetLevel > faculty.max_level) {
+        throw new ApiError(400, "Use graduate for students who completed the final level");
+      }
+    }
+
+    const filter = {
+      facultyId: new mongoose.Types.ObjectId(facultyId),
+      admitted_batch: admittedBatch,
+      current_level: sourceLevel,
+      isActive: true,
+      academic_status: { $ne: "graduated" },
+    };
+
+    const matchingStudents = await Student.countDocuments(filter);
+
+    if (!matchingStudents) {
+      throw new ApiError(404, "No active students found for the selected batch and level");
+    }
+
+    const update = shouldGraduate
+      ? { $set: { academic_status: "graduated" } }
+      : { $set: { current_level: targetLevel, academic_status: "active" } };
+
+    const result = await Student.updateMany(filter, update);
+    const updatedCount = result.modifiedCount ?? result.nModified ?? 0;
+
+    await ClassOffering.updateMany(
+      {
+        facultyId: new mongoose.Types.ObjectId(facultyId),
+        batch: admittedBatch,
+        level: sourceLevel,
+        isActive: true,
+      },
+      {
+        $set: {
+          isActive: false,
+          endDate: new Date(),
+        },
+      },
+    );
+
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          updatedCount,
+          facultyId,
+          batch: admittedBatch,
+          fromLevel: sourceLevel,
+          toLevel: shouldGraduate ? null : targetLevel,
+          academicStatus: shouldGraduate ? "graduated" : "active",
+        },
+        shouldGraduate
+          ? "Batch marked as graduated successfully"
+          : "Batch upgraded successfully",
+      ),
+    );
   } catch (error) {
     next(error);
   }

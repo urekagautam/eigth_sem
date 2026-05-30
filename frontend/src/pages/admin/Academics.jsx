@@ -10,14 +10,10 @@ import {
   Plus,
   RefreshCw,
   BookOpen,
-  Search,
-  ChevronDown,
-  Check,
   Eye,
   EyeOff,
 } from "lucide-react";
 import Button from "../../components/Button";
-import { DUMMY_SUBJECTS } from "../../data/examDummyData";
 import {
   createFaculty,
   fetchFaculties,
@@ -25,6 +21,8 @@ import {
   deleteFaculty,
 } from "../../services/apiFaculty";
 import StudentProfile from "./academics/StudentProfile";
+import BatchUpgradeTab from "./academics/BatchUpgradeTab";
+import SubjectsTab from "./academics/SubjectsTab";
 import {
   fetchStudents,
   createStudent as apiCreateStudent,
@@ -357,6 +355,7 @@ export default function Academics() {
   const [activeTab, setActiveTab] = useState("students");
   const [filterFacultyId, setFilterFacultyId] = useState("");
   const [filterLevel, setFilterLevel] = useState("");
+  const [filterBatch, setFilterBatch] = useState("");
 
   const [showAddStudent, setShowAddStudent] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
@@ -441,39 +440,24 @@ export default function Academics() {
     loadActiveStudentsForAssignments();
   }, []);
 
-  useEffect(() => {
-    const loadTeachers = async () => {
-      try {
-        const response = await fetchTeachers();
-        if (response?.success && Array.isArray(response.data)) {
-          setTeachers(response.data);
-        }
-      } catch (error) {
-        console.error("Failed to fetch teachers:", error);
+  const loadTeachers = async () => {
+    try {
+      const response = await fetchTeachers();
+      if (response?.success && Array.isArray(response.data)) {
+        setTeachers(response.data);
       }
-    };
+    } catch (error) {
+      console.error("Failed to fetch teachers:", error);
+    }
+  };
 
+  useEffect(() => {
     loadTeachers();
   }, []);
 
   const [resetTarget, setResetTarget] = useState(null);
   const [resetPasswordValue, setResetPasswordValue] = useState("");
   const [resetSuccess, setResetSuccess] = useState(false);
-
-  const [upgradeForm, setUpgradeForm] = useState({
-    facultyId: "",
-    fromLevel: "",
-    toLevel: "",
-    markAsGraduated: false,
-  });
-  const [upgradeNotice, setUpgradeNotice] = useState("");
-
-  const [subjects, setSubjects] = useState(DUMMY_SUBJECTS);
-  const [subjectFacultyId, setSubjectFacultyId] = useState("");
-  const [subjectLevel, setSubjectLevel] = useState("");
-  const [subjectForm, setSubjectForm] = useState({ name: "", code: "" });
-  const [teacherSearch, setTeacherSearch] = useState({});
-  const [teacherDropdownOpenId, setTeacherDropdownOpenId] = useState(null);
 
   const [duplicateAlert, setDuplicateAlert] = useState(null);
   const [editingFacultyId, setEditingFacultyId] = useState(null);
@@ -485,108 +469,25 @@ export default function Academics() {
   });
 
   const filterFaculty = faculties.find((f) => f._id === filterFacultyId);
-  const subjectFaculty = faculties.find((f) => f._id === subjectFacultyId);
-  const subjectLevelOptions = useMemo(
-    () => getLevelOptions(subjectFaculty),
-    [subjectFaculty],
-  );
   const levelOptions = useMemo(
     () => getLevelOptions(filterFaculty),
     [filterFaculty],
   );
-
-  const classSubjects = useMemo(() => {
-    if (!subjectFacultyId || !subjectLevel) return [];
-    return subjects.filter(
-      (s) =>
-        s.facultyId === subjectFacultyId && s.level === Number(subjectLevel),
-    );
-  }, [subjects, subjectFacultyId, subjectLevel]);
-
-  const getTeacherOtherAssignments = (teacherId, excludeSubjectId) =>
-    subjects
-      .filter(
-        (s) =>
-          s.assignedTeacher?.teacherId === teacherId &&
-          s._id !== excludeSubjectId,
-      )
-      .map((s) => `${s.facultyCode} · ${s.levelLabel} · ${s.name}`);
-
-  const getActiveBatchesForSubject = (subject) => {
+  const batchOptions = useMemo(() => {
     const batches = new Set();
-    activeStudentsForAssignments.forEach((student) => {
-      if (
-        student.admission?.facultyId === subject.facultyId &&
-        String(student.enrollment?.currentLevel) === String(subject.level) &&
-        student.enrollment?.status === "active"
-      ) {
-        batches.add(String(student.admission?.batch));
+    students.forEach((student) => {
+      if (student.admission?.batch) {
+        batches.add(String(student.admission.batch));
       }
     });
-    return Array.from(batches).sort();
-  };
+    return Array.from(batches).sort((a, b) => Number(b) - Number(a));
+  }, [students]);
 
   const getTeacherAssignedSubjects = (teacher) => {
-    const localAssignments = subjects
-      .filter((subject) => subject.assignedTeacher?.teacherId === teacher._id)
-      .map((subject) => ({
-        _id: subject._id,
-        name: subject.name,
-        code: subject.code,
-        facultyCode: subject.facultyCode,
-        levelLabel: subject.levelLabel,
-        batches: getActiveBatchesForSubject(subject),
-      }))
-      .filter((subject) => subject.batches.length > 0);
-
-    if (localAssignments.length > 0) return localAssignments;
-
     return (teacher.assignedSubjects || []).map((subject) => ({
       ...subject,
       batches: subject.batch ? [String(subject.batch)] : subject.batches || [],
     }));
-  };
-
-  const handleAddSubject = () => {
-    const faculty = subjectFaculty;
-    if (!faculty || !subjectLevel || !subjectForm.name.trim()) return;
-    const level = Number(subjectLevel);
-    const doc = {
-      _id: `sub_${Date.now()}`,
-      name: subjectForm.name.trim(),
-      code:
-        subjectForm.code.trim() || `${faculty.code}${level}${Date.now() % 100}`,
-      facultyId: faculty._id,
-      facultyCode: faculty.code,
-      level,
-      levelLabel: getLevelLabel(faculty.structureType, level),
-      structureType: faculty.structureType,
-      assignedTeacher: null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    setSubjects([doc, ...subjects]);
-    setSubjectForm({ name: "", code: "" });
-  };
-
-  const handleAssignTeacher = (subjectId, teacherId) => {
-    const teacher = teachers.find((t) => t._id === teacherId);
-    if (!teacher) return;
-    setSubjects(
-      subjects.map((s) =>
-        s._id === subjectId
-          ? {
-              ...s,
-              assignedTeacher: {
-                teacherId: teacher._id,
-                fullName: teacherFullName(teacher),
-              },
-              updatedAt: new Date().toISOString(),
-            }
-          : s,
-      ),
-    );
-    setTeacherSearch((prev) => ({ ...prev, [subjectId]: "" }));
   };
 
   const filteredStudents = students.filter((s) => {
@@ -596,6 +497,7 @@ export default function Academics() {
       if (s.enrollment.status === "graduated") return false;
       if (String(s.enrollment.currentLevel) !== filterLevel) return false;
     }
+    if (filterBatch && String(s.admission.batch) !== filterBatch) return false;
     return true;
   });
 
@@ -842,87 +744,6 @@ export default function Academics() {
     }
   };
 
-  const handleBatchUpgrade = () => {
-    setUpgradeNotice("");
-    const faculty = faculties.find((f) => f._id === upgradeForm.facultyId);
-    if (!faculty) {
-      setUpgradeNotice("Please select a faculty.");
-      return;
-    }
-
-    if (upgradeForm.markAsGraduated) {
-      setUpgradeNotice(
-        "UI preview: Graduated students are stored as FACULTY + BATCH only (no semester/year). Backend will enforce upgrade order.",
-      );
-      return;
-    }
-
-    if (!upgradeForm.fromLevel || !upgradeForm.toLevel) {
-      setUpgradeNotice("Select both current and target level.");
-      return;
-    }
-
-    const from = Number(upgradeForm.fromLevel);
-    const to = Number(upgradeForm.toLevel);
-    if (to <= from) {
-      setUpgradeNotice("Target level must be higher than current level.");
-      return;
-    }
-
-    if (to > from + 1) {
-      setUpgradeNotice(
-        "Upgrade higher semesters/years first. Example: move 5th → 6th before 3rd → 4th. (Backend rule — shown for UI only.)",
-      );
-      return;
-    }
-
-    setStudents(
-      students.map((s) => {
-        if (
-          s.admission.facultyId !== faculty._id ||
-          s.enrollment.status !== "active" ||
-          s.enrollment.currentLevel !== from
-        ) {
-          return s;
-        }
-        const isFinal = to >= faculty.maxLevel;
-        if (isFinal) {
-          return {
-            ...s,
-            enrollment: {
-              status: "graduated",
-              structureType: faculty.structureType,
-              currentLevel: null,
-              currentLevelLabel: null,
-              currentClass: null,
-            },
-            graduation: {
-              facultyId: faculty._id,
-              facultyCode: faculty.code,
-              facultyName: faculty.name,
-              batch: s.admission.batch,
-              graduatedAt: new Date().toISOString(),
-            },
-            updatedAt: new Date().toISOString(),
-          };
-        }
-        return {
-          ...s,
-          enrollment: {
-            ...s.enrollment,
-            currentLevel: to,
-            currentLevelLabel: getLevelLabel(faculty.structureType, to),
-            currentClass: `${faculty.code} — ${getLevelLabel(faculty.structureType, to)} — Batch ${s.admission.batch}`,
-          },
-          updatedAt: new Date().toISOString(),
-        };
-      }),
-    );
-    setUpgradeNotice(
-      `Upgraded ${faculty.code} students from ${getLevelLabel(faculty.structureType, from)} to ${getLevelLabel(faculty.structureType, to)}. (Local UI demo.)`,
-    );
-  };
-
   const Field = ({ label, children, optional }) => (
     <div>
       <label className={labelClass}>
@@ -941,135 +762,6 @@ export default function Academics() {
     { id: "upgrade", label: "Batch Upgrade", icon: ArrowUpCircle },
     { id: "subjects", label: "Subjects", icon: BookOpen },
   ];
-
-  const SearchableTeacherSelect = ({ subjectId, currentTeacherId }) => {
-    const isOpen = teacherDropdownOpenId === subjectId;
-    const q = teacherSearch[subjectId] ?? "";
-    const selected = teachers.find((t) => t._id === currentTeacherId);
-    const query = q.trim().toLowerCase();
-
-    const filtered = teachers.filter((t) => {
-      if (!query) return true;
-      const name = teacherFullName(t).toLowerCase();
-      return (
-        name.includes(query) ||
-        t.facultyCode?.toLowerCase().includes(query) ||
-        t.profile.phone?.includes(query)
-      );
-    });
-
-    const openDropdown = () => {
-      setTeacherDropdownOpenId(subjectId);
-      setTeacherSearch((prev) => ({
-        ...prev,
-        [subjectId]: prev[subjectId] ?? "",
-      }));
-    };
-
-    const closeDropdown = () => {
-      setTeacherDropdownOpenId(null);
-      setTeacherSearch((prev) => ({ ...prev, [subjectId]: "" }));
-    };
-
-    const pickTeacher = (teacherId) => {
-      handleAssignTeacher(subjectId, teacherId);
-      closeDropdown();
-    };
-
-    return (
-      <div className="relative max-w-md">
-        <button
-          type="button"
-          onClick={() => (isOpen ? closeDropdown() : openDropdown())}
-          className={`${selectClass} flex w-full items-center justify-between gap-2 text-left`}
-          aria-expanded={isOpen}
-          aria-haspopup="listbox"
-        >
-          <span
-            className={selected ? "font-medium text-gray-900" : "text-gray-500"}
-          >
-            {selected ? teacherFullName(selected) : "Select teacher…"}
-          </span>
-          <ChevronDown
-            className={`h-5 w-5 shrink-0 text-gray-500 transition-transform ${isOpen ? "rotate-180" : ""}`}
-          />
-        </button>
-
-        {isOpen && (
-          <>
-            <button
-              type="button"
-              className="fixed inset-0 z-20 cursor-default"
-              aria-label="Close teacher list"
-              onClick={closeDropdown}
-            />
-            <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
-              <div className="border-b border-gray-100 p-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
-                    placeholder="Search by name, faculty, phone…"
-                    value={q}
-                    onChange={(e) =>
-                      setTeacherSearch((prev) => ({
-                        ...prev,
-                        [subjectId]: e.target.value,
-                      }))
-                    }
-                    autoFocus
-                  />
-                </div>
-              </div>
-
-              <ul className="max-h-52 overflow-y-auto py-1" role="listbox">
-                {filtered.length === 0 ? (
-                  <li className="px-4 py-3 text-sm text-gray-500">
-                    No teachers found. Add teachers in the Teachers tab first.
-                  </li>
-                ) : (
-                  filtered.map((t) => {
-                    const isSelected = t._id === currentTeacherId;
-                    return (
-                      <li key={t._id}>
-                        <button
-                          type="button"
-                          role="option"
-                          aria-selected={isSelected}
-                          className={`flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left text-sm transition-colors ${
-                            isSelected
-                              ? "bg-blue-50 text-blue-800"
-                              : "hover:bg-gray-50"
-                          }`}
-                          onClick={() => pickTeacher(t._id)}
-                        >
-                          <div>
-                            <span className="font-medium">
-                              {teacherFullName(t)}
-                            </span>
-                            {t.facultyCode && (
-                              <span className="mt-0.5 block text-xs text-gray-500">
-                                {t.facultyCode}
-                                {t.profile.phone ? ` · ${t.profile.phone}` : ""}
-                              </span>
-                            )}
-                          </div>
-                          {isSelected && (
-                            <Check className="h-4 w-4 shrink-0 text-blue-600" />
-                          )}
-                        </button>
-                      </li>
-                    );
-                  })
-                )}
-              </ul>
-            </div>
-          </>
-        )}
-      </div>
-    );
-  };
 
   return (
     <div className="space-y-8">
@@ -1261,6 +953,7 @@ export default function Academics() {
                 onChange={(e) => {
                   setFilterFacultyId(e.target.value);
                   setFilterLevel("");
+                  setFilterBatch("");
                 }}
               >
                 <option value="">All faculties</option>
@@ -1279,13 +972,32 @@ export default function Academics() {
               <select
                 className={selectClass}
                 value={filterLevel}
-                onChange={(e) => setFilterLevel(e.target.value)}
+                onChange={(e) => {
+                  setFilterLevel(e.target.value);
+                  setFilterBatch("");
+                }}
                 disabled={!filterFacultyId}
               >
                 <option value="">Select an option</option>
                 {levelOptions.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1 min-w-45">
+              <label className={labelClass}>Batch</label>
+              <select
+                className={selectClass}
+                value={filterBatch}
+                onChange={(e) => setFilterBatch(e.target.value)}
+                disabled={!filterFacultyId || !filterLevel}
+              >
+                <option value="">Select batch</option>
+                {batchOptions.map((batch) => (
+                  <option key={batch} value={batch}>
+                    Batch {batch}
                   </option>
                 ))}
               </select>
@@ -1356,7 +1068,13 @@ export default function Academics() {
             {!filterFacultyId || !filterLevel ? (
               <div className="text-center py-12 bg-white border border-gray-200 rounded-lg">
                 <p className="text-gray-600">
-                  Please select the respective faculty and sem/year to see the student list.
+                  Please select the respective faculty and sem/year to choose a batch.
+                </p>
+              </div>
+            ) : !filterBatch ? (
+              <div className="text-center py-12 bg-white border border-gray-200 rounded-lg">
+                <p className="text-gray-600">
+                  Please select a batch to see students from only that batch.
                 </p>
               </div>
             ) : filteredStudents.length === 0 ? (
@@ -1547,7 +1265,7 @@ export default function Academics() {
 
                         <div>
                           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
-                            Active assigned subjects
+                            other assigned subjects
                           </p>
                           {assignedSubjects.length === 0 ? (
                             <p className="text-sm text-gray-600">
@@ -1657,296 +1375,24 @@ export default function Academics() {
       )}
       {/* ─── Batch upgrade tab ─── */}
       {activeTab === "upgrade" && (
-        <div className="bg-white border border-gray-200 rounded-lg p-8 space-y-6">
-          <h2 className="text-xl font-bold text-gray-900">
-            Semester / Year Batch Upgrade
-          </h2>
-          {/*   <p className="text-sm text-gray-600">
-            Upgrade an entire class to the next semester or year. After final level, students move
-            to graduated status (faculty + batch only).
-          </p> */}
-
-          <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
-            Upgrade an entire class to the next semester or year. After final
-            level, students move to graduated status (faculty + batch only).
-          </div>
-          {/*         Higher levels must be upgraded before lower ones can advance (e.g. 7th before 5th). This
-            rule will be enforced by the backend — this, for ref !!*/}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Field label="Faculty">
-              <select
-                className={selectClass}
-                value={upgradeForm.facultyId}
-                onChange={(e) =>
-                  setUpgradeForm({
-                    ...upgradeForm,
-                    facultyId: e.target.value,
-                    fromLevel: "",
-                    toLevel: "",
-                  })
-                }
-              >
-                <option value="">Select faculty</option>
-                {faculties.map((f) => (
-                  <option key={f._id} value={f._id}>
-                    {f.code} ({f.structureType})
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label=" ">
-              <label className="flex items-center gap-2 mt-8 cursor-pointer text-sm font-medium text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={upgradeForm.markAsGraduated}
-                  onChange={(e) =>
-                    setUpgradeForm({
-                      ...upgradeForm,
-                      markAsGraduated: e.target.checked,
-                    })
-                  }
-                  className="w-4 h-4"
-                />
-                Mark selected batch as graduated (faculty + batch only)
-              </label>
-            </Field>
-            {!upgradeForm.markAsGraduated && (
-              <>
-                <Field
-                  label={
-                    faculties.find((f) => f._id === upgradeForm.facultyId)
-                      ?.structureType === "year"
-                      ? "From year"
-                      : "From semester"
-                  }
-                >
-                  <select
-                    className={selectClass}
-                    value={upgradeForm.fromLevel}
-                    onChange={(e) =>
-                      setUpgradeForm({
-                        ...upgradeForm,
-                        fromLevel: e.target.value,
-                      })
-                    }
-                    disabled={!upgradeForm.facultyId}
-                  >
-                    <option value="">Current level</option>
-                    {getLevelOptions(
-                      faculties.find((f) => f._id === upgradeForm.facultyId),
-                    ).map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="To level">
-                  <select
-                    className={selectClass}
-                    value={upgradeForm.toLevel}
-                    onChange={(e) =>
-                      setUpgradeForm({
-                        ...upgradeForm,
-                        toLevel: e.target.value,
-                      })
-                    }
-                    disabled={!upgradeForm.fromLevel}
-                  >
-                    <option value="">Target level</option>
-                    {getLevelOptions(
-                      faculties.find((f) => f._id === upgradeForm.facultyId),
-                    )
-                      .filter((o) => o.value > Number(upgradeForm.fromLevel))
-                      .map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                  </select>
-                </Field>
-              </>
-            )}
-          </div>
-
-          {upgradeNotice && (
-            <p className="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-800">
-              {upgradeNotice}
-            </p>
-          )}
-
-          <Button variant="primary" onClick={handleBatchUpgrade}>
-            Apply batch upgrade
-          </Button>
-        </div>
+        <BatchUpgradeTab
+          faculties={faculties}
+          onComplete={() => {
+            setStudents([]);
+            setFilterLevel("");
+            setFilterBatch("");
+          }}
+        />
       )}
 
       {/* ─── Subjects tab ─── */}
       {activeTab === "subjects" && (
-        <div className="space-y-6">
-          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="mb-4 text-lg font-bold text-gray-900">
-              Class subjects
-            </h2>
-            <p className="mb-4 text-sm text-gray-600">
-              Add subjects per faculty and level. Assign teachers from your
-              teacher list. These subjects are used when marking exam
-              attendance.
-            </p>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Field label="Faculty">
-                <select
-                  className={selectClass}
-                  value={subjectFacultyId}
-                  onChange={(e) => {
-                    setSubjectFacultyId(e.target.value);
-                    setSubjectLevel("");
-                  }}
-                >
-                  <option value="">Select faculty</option>
-                  {faculties.map((f) => (
-                    <option key={f._id} value={f._id}>
-                      {f.code}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field
-                label={
-                  subjectFaculty?.structureType === "year" ? "Year" : "Semester"
-                }
-              >
-                <select
-                  className={selectClass}
-                  value={subjectLevel}
-                  onChange={(e) => setSubjectLevel(e.target.value)}
-                  disabled={!subjectFacultyId}
-                >
-                  <option value="">Select level</option>
-                  {subjectLevelOptions.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            </div>
-          </div>
-
-          {subjectFacultyId && subjectLevel && (
-            <>
-              <div className="rounded-lg border-2 border-blue-200 bg-white p-6 space-y-4">
-                <h3 className="font-bold text-gray-900">Add subject</h3>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <Field label="Subject name">
-                    <input
-                      className={inputClass}
-                      value={subjectForm.name}
-                      onChange={(e) =>
-                        setSubjectForm({ ...subjectForm, name: e.target.value })
-                      }
-                      placeholder="e.g. Database Management System"
-                    />
-                  </Field>
-                  <Field label="Subject code" optional>
-                    <input
-                      className={inputClass}
-                      value={subjectForm.code}
-                      onChange={(e) =>
-                        setSubjectForm({ ...subjectForm, code: e.target.value })
-                      }
-                      placeholder="e.g. BCA301"
-                    />
-                  </Field>
-                  <div className="flex items-end">
-                    <Button variant="primary" onClick={handleAddSubject}>
-                      Add subject
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              {classSubjects.length === 0 ? (
-                <div className="rounded-lg border border-gray-200 bg-white py-12 text-center text-gray-600">
-                  No subjects for this class yet. Add subjects above.
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {classSubjects.map((sub) => (
-                    <div
-                      key={sub._id}
-                      className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm space-y-4"
-                    >
-                      <div className="flex flex-wrap justify-between gap-3">
-                        <div>
-                          <h3 className="text-lg font-bold text-gray-900">
-                            {sub.name}
-                          </h3>
-                          <p className="text-sm text-gray-600">
-                            Code: <span className="font-mono">{sub.code}</span>{" "}
-                            · {sub.facultyCode} · {sub.levelLabel}
-                          </p>
-                        </div>
-                        {sub.assignedTeacher ? (
-                          <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">
-                            {sub.assignedTeacher.fullName}
-                          </span>
-                        ) : (
-                          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
-                            No teacher assigned
-                          </span>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className={labelClass}>
-                          Assign / change teacher
-                        </label>
-
-                        <SearchableTeacherSelect
-                          subjectId={sub._id}
-                          currentTeacherId={sub.assignedTeacher?.teacherId}
-                        />
-                      </div>
-
-                      {sub.assignedTeacher && (
-                        <div className="rounded-lg bg-gray-50 border border-gray-100 px-4 py-3">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
-                            Other subjects for this teacher
-                          </p>
-                          {getTeacherOtherAssignments(
-                            sub.assignedTeacher.teacherId,
-                            sub._id,
-                          ).length === 0 ? (
-                            <p className="text-sm text-gray-600">
-                              No other subject assignments.
-                            </p>
-                          ) : (
-                            <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
-                              {getTeacherOtherAssignments(
-                                sub.assignedTeacher.teacherId,
-                                sub._id,
-                              ).map((line) => (
-                                <li key={line}>{line}</li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-
-          {(!subjectFacultyId || !subjectLevel) && (
-            <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 py-12 text-center text-gray-600">
-              Select faculty and level to manage subjects.
-            </div>
-          )}
-        </div>
+        <SubjectsTab
+          faculties={faculties}
+          teachers={teachers}
+          activeStudentsForAssignments={activeStudentsForAssignments}
+          onAssignmentsChange={loadTeachers}
+        />
       )}
 
       {/* Reset password modal */}

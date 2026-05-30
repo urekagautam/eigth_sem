@@ -4,6 +4,7 @@ import connectDB from "./db/index.js";
 import authRoute from "./routes/auth.route.js";
 import facultyRoute from "./routes/faculty.route.js";
 import studentRoute from "./routes/student.route.js";
+import subjectRoute from "./routes/subject.route.js";
 import teacherRoute from "./routes/teacher.route.js";
 
 dotenv.config();
@@ -28,6 +29,7 @@ app.use((req, res, next) => {
 app.use("/api/admin", authRoute);
 app.use('/api/admin/faculties', facultyRoute);
 app.use('/api/admin/students', studentRoute);
+app.use('/api/admin/subjects', subjectRoute);
 app.use('/api/admin/teachers', teacherRoute);
 app.get("/", (req, res) => {
   res.send("Server is ready");

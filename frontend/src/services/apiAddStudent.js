@@ -14,7 +14,7 @@ const handleResponse = async (response) => {
   return result ?? { success: true };
 };
 
-export const fetchStudents = async ({ facultyId, level } = {}) => {
+export const fetchStudents = async ({ facultyId, level, batch } = {}) => {
   const token = localStorage.getItem("examifyToken");
   const headers = {
     "Content-Type": "application/json",
@@ -24,6 +24,7 @@ export const fetchStudents = async ({ facultyId, level } = {}) => {
   const url = new URL(STUDENTS_API_URL);
   if (facultyId) url.searchParams.append("facultyId", facultyId);
   if (level) url.searchParams.append("level", level);
+  if (batch) url.searchParams.append("batch", batch);
 
   const response = await fetch(url.toString(), {
     method: "GET",
