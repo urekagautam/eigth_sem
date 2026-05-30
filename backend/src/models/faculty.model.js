@@ -5,7 +5,6 @@ const facultySchema = new Schema(
     faculty_code: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
     },
 
@@ -24,6 +23,25 @@ const facultySchema = new Schema(
     max_level: {
       type: Number,
       required: true,
+    },
+
+    levels: [
+      {
+        value: {
+          type: Number,
+          required: true,
+        },
+        label: {
+          type: String,
+          required: true,
+        },
+      },
+    ],
+
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
   },
   {

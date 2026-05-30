@@ -1,4 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+// import { useState, useMemo, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   X,
   Users,
@@ -14,6 +16,12 @@ import {
 } from "lucide-react";
 import Button from "../../components/Button";
 import { DUMMY_SUBJECTS } from "../../data/examDummyData";
+import {
+  createFaculty,
+  fetchFaculties,
+  updateFaculty,
+  deleteFaculty,
+} from "../../services/apiFaculty";
 
 const inputClass =
   "w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600";
@@ -44,14 +52,21 @@ function getLevelLabel(structureType, level) {
 
 function getLevelOptions(faculty) {
   if (!faculty) return [];
-  const max = Math.min(
-    faculty.maxLevel,
-    faculty.structureType === "semester" ? MAX_SEMESTERS : MAX_YEARS,
-  );
+  const limit = faculty.structureType === "semester" ? MAX_SEMESTERS : MAX_YEARS;
+  const max = Math.min(Math.max(Number(faculty.maxLevel) || 1, 1), limit);
   return Array.from({ length: max }, (_, i) => {
     const level = i + 1;
     return { value: level, label: getLevelLabel(faculty.structureType, level) };
   });
+}
+
+function getFacultyLevelLabels(faculty) {
+  if (!faculty) return [];
+  const limit = faculty.structureType === "semester" ? MAX_SEMESTERS : MAX_YEARS;
+  const max = Math.min(Math.max(Number(faculty.maxLevel) || 1, 1), limit);
+  return Array.from({ length: max }, (_, i) =>
+    getLevelLabel(faculty.structureType, i + 1),
+  );
 }
 
 function generatePassword() {
@@ -319,6 +334,7 @@ export default function Academics() {
   const [faculties, setFaculties] = useState(initialFaculties);
   const [students, setStudents] = useState(dummyStudents);
   const [teachers, setTeachers] = useState(dummyTeachers);
+  const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState("students");
   const [filterFacultyId, setFilterFacultyId] = useState("");
@@ -340,6 +356,28 @@ export default function Academics() {
     structureType: "semester",
     maxLevel: 8,
   });
+  const [loadingFaculties, setLoadingFaculties] = useState(false);
+
+  useEffect(() => {
+    const loadFaculties = async () => {
+      setLoadingFaculties(true);
+      try {
+        const response = await fetchFaculties();
+        if (response?.success && Array.isArray(response.data)) {
+          // Normalize id fields: prefer `_id`, fall back to `id`
+          setFaculties(
+            response.data.map((f) => ({ ...f, _id: f._id ?? f.id })),
+          );
+        }
+      } catch (error) {
+        console.error("Failed to fetch faculties:", error);
+      } finally {
+        setLoadingFaculties(false);
+      }
+    };
+
+    loadFaculties();
+  }, []);
 
   const [resetTarget, setResetTarget] = useState(null);
   const [resetPasswordValue, setResetPasswordValue] = useState("");
@@ -359,6 +397,15 @@ export default function Academics() {
   const [subjectForm, setSubjectForm] = useState({ name: "", code: "" });
   const [teacherSearch, setTeacherSearch] = useState({});
   const [teacherDropdownOpenId, setTeacherDropdownOpenId] = useState(null);
+
+  const [duplicateAlert, setDuplicateAlert] = useState(null);
+  const [editingFacultyId, setEditingFacultyId] = useState(null);
+  const [facultyEditForm, setFacultyEditForm] = useState({
+    code: "",
+    name: "",
+    structureType: "semester",
+    maxLevel: 8,
+  });
 
   const filterFaculty = faculties.find((f) => f._id === filterFacultyId);
   const subjectFaculty = faculties.find((f) => f._id === subjectFacultyId);
@@ -447,30 +494,103 @@ export default function Academics() {
     return true;
   });
 
-  const handleAddFaculty = () => {
-    if (!newFacultyForm.code.trim() || !newFacultyForm.name.trim()) return;
-    const max =
-      newFacultyForm.structureType === "semester"
-        ? Math.min(Number(newFacultyForm.maxLevel) || 8, MAX_SEMESTERS)
-        : Math.min(Number(newFacultyForm.maxLevel) || 4, MAX_YEARS);
+  const handleAddFaculty = async () => {
+    if (!newFacultyForm.name.trim() || !newFacultyForm.code.trim()) return;
 
-    const doc = {
-      _id: `fac_${Date.now()}`,
-      code: newFacultyForm.code.trim().toUpperCase(),
-      name: newFacultyForm.name.trim(),
+    const facultyName = newFacultyForm.name.trim();
+    const facultyCode = newFacultyForm.code.trim().toUpperCase();
+
+    // Check if a faculty with the same name already exists and is NOT deleted
+    const existingFaculty = faculties.find(
+      (f) => f.name.toLowerCase() === facultyName.toLowerCase() && !f.isDeleted
+    );
+
+    if (existingFaculty) {
+      // If faculty exists and is not deleted, show duplicate alert
+      setDuplicateAlert({
+        name: existingFaculty.name,
+        code: existingFaculty.code,
+      });
+      return;
+    }
+
+    const payload = {
+      code: facultyCode,
+      name: facultyName,
       structureType: newFacultyForm.structureType,
-      maxLevel: max,
-      isSystemDefault: false,
-      createdAt: new Date().toISOString(),
+      maxLevel: Number(newFacultyForm.maxLevel),
     };
-    setFaculties([...faculties, doc]);
-    setNewFacultyForm({
+
+    try {
+      const result = await createFaculty(payload);
+      if (result?.success && result.data) {
+        const created = { ...result.data, _id: result.data._id ?? result.data.id };
+        setFaculties((current) => [...current, created]);
+        setNewFacultyForm({
+          code: "",
+          name: "",
+          structureType: "semester",
+          maxLevel: 8,
+        });
+        setShowAddFaculty(false);
+        setDuplicateAlert(null);
+      }
+    } catch (error) {
+      console.error("Error adding faculty:", error);
+      
+      // Handle E11000 duplicate key error from backend
+      if (error?.message?.includes("E11000") || error?.message?.includes("duplicate")) {
+        setDuplicateAlert({
+          name: facultyName,
+          code: facultyCode,
+        });
+      } else {
+        alert(error?.message || "Failed to add faculty. Please try again.");
+      }
+    }
+  };
+
+  const startEditFaculty = (faculty) => {
+    setEditingFacultyId(faculty._id);
+    setFacultyEditForm({
+      code: faculty.code,
+      name: faculty.name,
+      structureType: faculty.structureType,
+      maxLevel: faculty.maxLevel,
+    });
+  };
+
+  const cancelEditFaculty = () => {
+    setEditingFacultyId(null);
+    setFacultyEditForm({
       code: "",
       name: "",
       structureType: "semester",
       maxLevel: 8,
     });
-    setShowAddFaculty(false);
+  };
+
+  const handleUpdateFaculty = async () => {
+    if (!editingFacultyId) return;
+    if (!facultyEditForm.name.trim() || !facultyEditForm.code.trim()) return;
+
+    const payload = {
+      code: facultyEditForm.code.trim().toUpperCase(),
+      name: facultyEditForm.name.trim(),
+      structureType: facultyEditForm.structureType,
+      maxLevel: Number(facultyEditForm.maxLevel),
+    };
+
+    try {
+      const result = await updateFaculty(editingFacultyId, payload);
+      if (result?.success && result.data) {
+        const updated = { ...result.data, _id: result.data._id ?? result.data.id };
+        setFaculties((current) => current.map((f) => (f._id === editingFacultyId ? updated : f)));
+        cancelEditFaculty();
+      }
+    } catch (error) {
+      console.error("Error updating faculty:", error);
+    }
   };
 
   const handleCreateStudent = () => {
@@ -870,44 +990,77 @@ export default function Academics() {
         </Button>
       </div>
 
+      {/* Duplicate Faculty Alert */}
+      {duplicateAlert && (
+        <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4 flex items-start gap-4">
+          <div className="flex-shrink-0">
+            <X className="w-5 h-5 text-red-600" />
+          </div>
+          <div className="flex-grow">
+            <h3 className="font-semibold text-red-900">Faculty already added</h3>
+            <p className="text-sm text-red-800 mt-1">
+              A faculty named <strong>{duplicateAlert.name}</strong> ({duplicateAlert.code}) 
+              already exists. Please use a different name.
+            </p>
+          </div>
+          <button
+            onClick={() => setDuplicateAlert(null)}
+            className="flex-shrink-0 text-red-600 hover:text-red-900"
+            aria-label="Close alert"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      )}
+
       {/* Add faculty panel */}
       {showAddFaculty && (
         <div className="bg-white border-2 border-blue-200 rounded-lg p-6 space-y-4">
           <h2 className="text-xl font-bold text-gray-900">Add New Faculty</h2>
           <p className="text-sm text-gray-600">
-            Semester-based: max 8 semesters. Year-based: max 5 years.
+            Enter faculty name first, then the faculty code. All fields are required.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Field label="Faculty Code">
+            <div>
+              <label className={labelClass} htmlFor="faculty-name">
+                Faculty Name
+              </label>
               <input
-                className={inputClass}
-                value={newFacultyForm.code}
-                onChange={(e) =>
-                  setNewFacultyForm({ ...newFacultyForm, code: e.target.value })
-                }
-                placeholder="e.g. BBA"
-              />
-            </Field>
-            <Field label="Faculty Name">
-              <input
+                id="faculty-name"
+                type="text"
                 className={inputClass}
                 value={newFacultyForm.name}
                 onChange={(e) =>
-                  setNewFacultyForm({ ...newFacultyForm, name: e.target.value })
+                  setNewFacultyForm((prev) => ({ ...prev, name: e.target.value }))
                 }
-                placeholder="Full program name"
+                placeholder="Bachelor of Computer Applications"
               />
-            </Field>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="faculty-code">
+                Faculty Code
+              </label>
+              <input
+                id="faculty-code"
+                type="text"
+                className={inputClass}
+                value={newFacultyForm.code}
+                onChange={(e) =>
+                  setNewFacultyForm((prev) => ({ ...prev, code: e.target.value }))
+                }
+                placeholder="e.g. BCA"
+              />
+            </div>
             <Field label="Structure">
               <select
                 className={selectClass}
                 value={newFacultyForm.structureType}
                 onChange={(e) =>
-                  setNewFacultyForm({
-                    ...newFacultyForm,
+                  setNewFacultyForm((prev) => ({
+                    ...prev,
                     structureType: e.target.value,
-                    maxLevel: e.target.value === "semester" ? 8 : 4,
-                  })
+                    maxLevel: e.target.value === "semester" ? 8 : 5,
+                  }))
                 }
               >
                 <option value="semester">Semester based</option>
@@ -919,10 +1072,10 @@ export default function Academics() {
                 className={selectClass}
                 value={newFacultyForm.maxLevel}
                 onChange={(e) =>
-                  setNewFacultyForm({
-                    ...newFacultyForm,
+                  setNewFacultyForm((prev) => ({
+                    ...prev,
                     maxLevel: Number(e.target.value),
-                  })
+                  }))
                 }
               >
                 {Array.from(
@@ -945,26 +1098,35 @@ export default function Academics() {
             </Field>
           </div>
           <div className="flex justify-end">
-            <Button variant="primary" onClick={handleAddFaculty}>
+            <Button variant="primary" type="button" onClick={handleAddFaculty}>
               Save Faculty
             </Button>
           </div>
         </div>
       )}
 
-      {/* Faculty chips */}
-      <div className="flex flex-wrap gap-2">
-        {faculties.map((f) => (
-          <span
-            key={f._id}
-            className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-sm font-medium text-gray-800"
-          >
-            {f.code}
-            <span className="text-gray-500">
-              ({f.structureType === "semester" ? "sem" : "year"} · {f.maxLevel})
+      <div className="bg-white border border-gray-200 rounded-lg p-6 mt-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Faculties overview</h2>
+            <p className="text-sm text-gray-600">
+              You can still add new faculties here, then manage all existing faculties on the dedicated page.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-700">
+              {faculties.length} faculty{faculties.length === 1 ? "" : "ies"}
             </span>
-          </span>
-        ))}
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              onClick={() => navigate("/admin/academics/faculties")}
+            >
+              See all faculty ›
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -990,7 +1152,7 @@ export default function Academics() {
       {activeTab === "students" && (
         <div className="space-y-6">
           <div className="bg-white border border-gray-200 rounded-lg p-6 flex flex-wrap gap-4 items-end">
-            <div className="flex-1 min-w-[180px]">
+            <div className="flex-1 min-w-45">
               <label className={labelClass}>Faculty</label>
               <select
                 className={selectClass}
@@ -1009,7 +1171,7 @@ export default function Academics() {
                 ))}
               </select>
             </div>
-            <div className="flex-1 min-w-[180px]">
+            <div className="flex-1 min-w-45">
               <label className={labelClass}>
                 {filterFaculty?.structureType === "year" ? "Year" : "Semester"}
               </label>
