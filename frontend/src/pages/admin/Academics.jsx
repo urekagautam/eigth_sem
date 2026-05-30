@@ -13,6 +13,8 @@ import {
   Search,
   ChevronDown,
   Check,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import Button from "../../components/Button";
 import { DUMMY_SUBJECTS } from "../../data/examDummyData";
@@ -22,6 +24,13 @@ import {
   updateFaculty,
   deleteFaculty,
 } from "../../services/apiFaculty";
+import StudentProfile from "./academics/StudentProfile";
+import {
+  fetchStudents,
+  createStudent as apiCreateStudent,
+  updateStudent as apiUpdateStudent,
+  deleteStudent as apiDeleteStudent,
+} from "../../services/apiAddStudent";
 
 const inputClass =
   "w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600";
@@ -332,7 +341,7 @@ const dummyTeachers = [
 
 export default function Academics() {
   const [faculties, setFaculties] = useState(initialFaculties);
-  const [students, setStudents] = useState(dummyStudents);
+  const [students, setStudents] = useState([]);
   const [teachers, setTeachers] = useState(dummyTeachers);
   const navigate = useNavigate();
 
@@ -341,9 +350,9 @@ export default function Academics() {
   const [filterLevel, setFilterLevel] = useState("");
 
   const [showAddStudent, setShowAddStudent] = useState(false);
-  const [studentForm, setStudentForm] = useState(emptyStudentForm());
-  const [studentFormFacultyId, setStudentFormFacultyId] = useState("");
+  const [editingStudent, setEditingStudent] = useState(null);
   const [newStudentCreds, setNewStudentCreds] = useState(null);
+  const [visiblePasswords, setVisiblePasswords] = useState({});
 
   const [showAddTeacher, setShowAddTeacher] = useState(false);
   const [teacherForm, setTeacherForm] = useState(emptyTeacherForm());
@@ -379,6 +388,23 @@ export default function Academics() {
     loadFaculties();
   }, []);
 
+  useEffect(() => {
+    const loadStudents = async () => {
+      try {
+        const response = await fetchStudents({
+          facultyId: filterFacultyId,
+          level: filterLevel,
+        });
+        if (response?.success && Array.isArray(response.data)) {
+          setStudents(response.data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch students:", error);
+      }
+    };
+    loadStudents();
+  }, [filterFacultyId, filterLevel]);
+
   const [resetTarget, setResetTarget] = useState(null);
   const [resetPasswordValue, setResetPasswordValue] = useState("");
   const [resetSuccess, setResetSuccess] = useState(false);
@@ -413,16 +439,9 @@ export default function Academics() {
     () => getLevelOptions(subjectFaculty),
     [subjectFaculty],
   );
-  const studentFormFaculty = faculties.find(
-    (f) => f._id === studentFormFacultyId,
-  );
   const levelOptions = useMemo(
     () => getLevelOptions(filterFaculty),
     [filterFaculty],
-  );
-  const studentFormLevelOptions = useMemo(
-    () => getLevelOptions(studentFormFaculty),
-    [studentFormFaculty],
   );
 
   const classSubjects = useMemo(() => {
@@ -593,74 +612,47 @@ export default function Academics() {
     }
   };
 
-  const handleCreateStudent = () => {
-    const faculty = studentFormFaculty;
-    if (
-      !faculty ||
-      !studentForm.firstName ||
-      !studentForm.lastName ||
-      !studentForm.studentId
-    )
-      return;
-    if (!studentForm.currentLevel) return;
+  const handleSaveStudent = async (payload) => {
+    try {
+      if (editingStudent) {
+        const response = await apiUpdateStudent(editingStudent._id, payload);
+        if (response?.success && response.data) {
+          setStudents((current) =>
+            current.map((s) => (s._id === editingStudent._id ? response.data : s))
+          );
+          setEditingStudent(null);
+        }
+      } else {
+        const response = await apiCreateStudent(payload);
+        if (response?.success && response.data) {
+          setStudents((current) => [response.data, ...current]);
+          
+          if (response.data.credentials?.password) {
+            setNewStudentCreds({
+              username: response.data.credentials.username,
+              password: response.data.credentials.password,
+            });
+          }
+        }
+      }
+      setShowAddStudent(false);
+    } catch (error) {
+      console.error("Failed to save student:", error);
+      alert(error.message || "Failed to save student");
+    }
+  };
 
-    const level = Number(studentForm.currentLevel);
-    const username = generateUsername(
-      studentForm.firstName,
-      studentForm.lastName,
-      studentForm.studentId,
-    );
-    const password = generatePassword();
-    setNewStudentCreds({ username, password });
-
-    const doc = {
-      _id: `stu_${Date.now()}`,
-      profile: {
-        firstName: studentForm.firstName,
-        middleName: studentForm.middleName || "",
-        lastName: studentForm.lastName,
-        gender: studentForm.gender,
-        bloodGroup: studentForm.bloodGroup,
-        email: studentForm.email,
-        mobile: studentForm.mobile,
-        citizenshipNo: studentForm.citizenshipNo || null,
-      },
-      studentId: studentForm.studentId,
-      universityRegNo: studentForm.universityRegNo,
-      universitySymbolNo: studentForm.universitySymbolNo,
-      guardian: {
-        name: studentForm.guardianName,
-        mobile: studentForm.guardianMobile,
-        fatherName: studentForm.fatherName,
-        motherName: studentForm.motherName,
-        fatherMobile: studentForm.fatherMobile,
-        motherMobile: studentForm.motherMobile,
-      },
-      admission: {
-        facultyId: faculty._id,
-        facultyCode: faculty.code,
-        facultyName: faculty.name,
-        batch: studentForm.admittedBatch,
-      },
-      enrollment: {
-        status: "active",
-        structureType: faculty.structureType,
-        currentLevel: level,
-        currentLevelLabel: getLevelLabel(faculty.structureType, level),
-        currentClass: `${faculty.code} — ${getLevelLabel(faculty.structureType, level)} — Batch ${studentForm.admittedBatch}`,
-      },
-      graduation: null,
-      credentials: {
-        username,
-        hasPassword: true,
-        lastResetAt: new Date().toISOString(),
-      },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    setStudents([doc, ...students]);
-    setStudentForm(emptyStudentForm());
-    setStudentFormFacultyId("");
+  const handleDeleteStudent = async (studentId) => {
+    if (!window.confirm("Are you sure you want to delete this student?")) return;
+    try {
+      const response = await apiDeleteStudent(studentId);
+      if (response?.success) {
+        setStudents((current) => current.filter((s) => s._id !== studentId));
+      }
+    } catch (error) {
+      console.error("Failed to delete student:", error);
+      alert(error.message || "Failed to delete student");
+    }
   };
 
   const handleCreateTeacher = () => {
@@ -697,48 +689,54 @@ export default function Academics() {
     setTeacherForm(emptyTeacherForm());
   };
 
-  const handleResetPassword = () => {
+  const handleResetPassword = async () => {
     if (!resetTarget || !resetPasswordValue) return;
     const now = new Date().toISOString();
-    if (resetTarget.type === "student") {
-      setStudents(
-        students.map((s) =>
-          s._id === resetTarget.id
-            ? {
-                ...s,
-                credentials: {
-                  ...s.credentials,
-                  lastResetAt: now,
-                  hasPassword: true,
-                },
-                updatedAt: now,
-              }
-            : s,
-        ),
-      );
-    } else {
-      setTeachers(
-        teachers.map((t) =>
-          t._id === resetTarget.id
-            ? {
-                ...t,
-                credentials: {
-                  ...t.credentials,
-                  lastResetAt: now,
-                  hasPassword: true,
-                },
-                updatedAt: now,
-              }
-            : t,
-        ),
-      );
+    try {
+      if (resetTarget.type === "student") {
+        await apiUpdateStudent(resetTarget.id, { password: resetPasswordValue });
+        setStudents(
+          students.map((s) =>
+            s._id === resetTarget.id
+              ? {
+                  ...s,
+                  credentials: {
+                    ...s.credentials,
+                    lastResetAt: now,
+                    hasPassword: true,
+                  },
+                  updatedAt: now,
+                }
+              : s,
+          ),
+        );
+      } else {
+        setTeachers(
+          teachers.map((t) =>
+            t._id === resetTarget.id
+              ? {
+                  ...t,
+                  credentials: {
+                    ...t.credentials,
+                    lastResetAt: now,
+                    hasPassword: true,
+                  },
+                  updatedAt: now,
+                }
+              : t,
+          ),
+        );
+      }
+      setResetSuccess(true);
+      setTimeout(() => {
+        setResetTarget(null);
+        setResetPasswordValue("");
+        setResetSuccess(false);
+      }, 2500);
+    } catch (error) {
+      console.error("Failed to reset password:", error);
+      alert(error.message || "Failed to reset password");
     }
-    setResetSuccess(true);
-    setTimeout(() => {
-      setResetTarget(null);
-      setResetPasswordValue("");
-      setResetSuccess(false);
-    }, 2000);
   };
 
   const handleBatchUpgrade = () => {
@@ -1191,213 +1189,61 @@ export default function Academics() {
             </div>
             <Button
               variant="primary"
-              onClick={() => setShowAddStudent(!showAddStudent)}
+              onClick={() => {
+                setEditingStudent(null);
+                setShowAddStudent(true);
+              }}
+              disabled={!filterFacultyId || !filterLevel}
+              title={(!filterFacultyId || !filterLevel) ? "Select faculty and level/semester first" : ""}
             >
               + Add Student
             </Button>
           </div>
 
-          {showAddStudent && (
-            <div className="bg-white border-2 border-blue-200 rounded-lg p-8 space-y-6">
-              <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Create Student Profile
+          <StudentProfile
+            isOpen={showAddStudent}
+            onClose={() => {
+              setShowAddStudent(false);
+              setEditingStudent(null);
+            }}
+            onSave={handleSaveStudent}
+            faculty={filterFaculty}
+            currentLevel={filterLevel}
+            student={editingStudent}
+          />
+
+          {newStudentCreds && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+              <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4">
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <KeyRound className="w-5 h-5 text-blue-600" />
+                  Student Credentials Created
                 </h2>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddStudent(false);
-                    setStudentForm(emptyStudentForm());
-                    setNewStudentCreds(null);
-                  }}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Field label="Admitted Program (Faculty)">
-                  <select
-                    className={selectClass}
-                    value={studentFormFacultyId}
-                    onChange={(e) => {
-                      setStudentFormFacultyId(e.target.value);
-                      setStudentForm({ ...studentForm, currentLevel: "" });
-                    }}
-                  >
-                    <option value="">Select faculty</option>
-                    {faculties.map((f) => (
-                      <option key={f._id} value={f._id}>
-                        {f.code} — {f.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Current Class">
-                  <select
-                    className={selectClass}
-                    value={studentForm.currentLevel}
-                    onChange={(e) =>
-                      setStudentForm({
-                        ...studentForm,
-                        currentLevel: e.target.value,
-                      })
-                    }
-                    disabled={!studentFormFacultyId}
-                  >
-                    <option value="">Select level</option>
-                    {studentFormLevelOptions.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Admitted Batch">
-                  <input
-                    className={inputClass}
-                    value={studentForm.admittedBatch}
-                    onChange={(e) =>
-                      setStudentForm({
-                        ...studentForm,
-                        admittedBatch: e.target.value,
-                      })
-                    }
-                    placeholder="e.g. 2081"
-                  />
-                </Field>
-                <Field label="Student ID">
-                  <input
-                    className={inputClass}
-                    value={studentForm.studentId}
-                    onChange={(e) =>
-                      setStudentForm({
-                        ...studentForm,
-                        studentId: e.target.value,
-                      })
-                    }
-                    placeholder="BCA-2081-001"
-                  />
-                </Field>
-              </div>
-
-              <h3 className="font-bold text-gray-800 border-b pb-2">
-                Personal details
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {[
-                  ["First Name", "firstName"],
-                  ["Middle Name", "middleName", true],
-                  ["Last Name", "lastName"],
-                  ["Mobile No.", "mobile"],
-                  ["Email", "email"],
-                  ["Gender", "gender"],
-                  ["Blood Group", "bloodGroup"],
-                  ["Citizenship No.", "citizenshipNo", true],
-                  ["University Reg. No.", "universityRegNo"],
-                  ["University Symbol No.", "universitySymbolNo"],
-                ].map(([lbl, key, opt]) => (
-                  <Field key={key} label={lbl} optional={opt}>
-                    <input
-                      className={inputClass}
-                      value={studentForm[key]}
-                      onChange={(e) =>
-                        setStudentForm({
-                          ...studentForm,
-                          [key]: e.target.value,
-                        })
-                      }
-                    />
-                  </Field>
-                ))}
-              </div>
-
-              <h3 className="font-bold text-gray-800 border-b pb-2">
-                Guardian & parents
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[
-                  ["Guardian Name", "guardianName"],
-                  ["Guardian Mobile", "guardianMobile"],
-                  ["Father's Name", "fatherName"],
-                  ["Mother's Name", "motherName"],
-                  ["Father's Mobile", "fatherMobile"],
-                  ["Mother's Mobile", "motherMobile"],
-                ].map(([lbl, key]) => (
-                  <Field key={key} label={lbl}>
-                    <input
-                      className={inputClass}
-                      value={studentForm[key]}
-                      onChange={(e) =>
-                        setStudentForm({
-                          ...studentForm,
-                          [key]: e.target.value,
-                        })
-                      }
-                    />
-                  </Field>
-                ))}
-              </div>
-
-              <div className="rounded-lg bg-gray-50 border border-gray-200 p-4 space-y-3">
-                <p className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-                  <KeyRound className="w-4 h-4" /> Login credentials
+                <p className="text-sm text-gray-600">
+                  The student has been saved successfully. Please copy the temporary login credentials below:
                 </p>
-                {/*  <p className="text-xs text-gray-500">
-                  Generate username & password after saving profile (demo — API will persist hashed
-                  password).
-                </p> */}
-                {newStudentCreds ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                    <div className="bg-white rounded-lg px-3 py-2 border">
-                      <span className="text-gray-500">Username</span>
-                      <p className="font-mono font-semibold">
-                        {newStudentCreds.username}
-                      </p>
-                    </div>
-                    <div className="bg-white rounded-lg px-3 py-2 border">
-                      <span className="text-gray-500">Password</span>
-                      <p className="font-mono font-semibold">
-                        {newStudentCreds.password}
-                      </p>
-                    </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div className="bg-gray-50 rounded-lg px-3 py-2 border">
+                    <span className="text-gray-500 text-xs">Username</span>
+                    <p className="font-mono font-semibold text-gray-800">
+                      {newStudentCreds.username}
+                    </p>
                   </div>
-                ) : (
+                  <div className="bg-gray-50 rounded-lg px-3 py-2 border">
+                    <span className="text-gray-500 text-xs">Password</span>
+                    <p className="font-mono font-semibold text-gray-800">
+                      {newStudentCreds.password}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex justify-end pt-2">
                   <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const u = generateUsername(
-                        studentForm.firstName,
-                        studentForm.lastName,
-                        studentForm.studentId,
-                      );
-                      setNewStudentCreds({
-                        username: u,
-                        password: generatePassword(),
-                      });
-                    }}
+                    variant="primary"
+                    onClick={() => setNewStudentCreds(null)}
                   >
-                    Preview generated credentials
+                    Close & Copy Details
                   </Button>
-                )}
-              </div>
-
-              <div className="flex justify-end gap-3">
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setShowAddStudent(false);
-                    setStudentForm(emptyStudentForm());
-                    setNewStudentCreds(null);
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button variant="primary" onClick={handleCreateStudent}>
-                  Save Student
-                </Button>
+                </div>
               </div>
             </div>
           )}
@@ -1432,27 +1278,65 @@ export default function Academics() {
                         </span>
                       )}
                     </div>
-                    <div className="text-right text-sm text-gray-600 space-y-1">
-                      <p>@{s.credentials.username}</p>
-                      <p>
-                        {s.profile.mobile} · {s.profile.email}
-                      </p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setResetTarget({
-                            type: "student",
-                            id: s._id,
-                            name: `${s.profile.firstName} ${s.profile.lastName}`,
-                          });
-                          setResetPasswordValue(generatePassword());
-                          setResetSuccess(false);
-                        }}
-                      >
-                        <RefreshCw className="w-3 h-3 inline mr-1" />
-                        Reset password
-                      </Button>
+                    <div className="text-right text-sm text-gray-600 space-y-2 flex flex-col items-end justify-between">
+                      <div className="space-y-1">
+                        <p className="font-semibold text-gray-800">
+                          <span className="text-xs font-normal text-gray-500 mr-1">Username:</span>
+                          @{s.credentials?.username}
+                        </p>
+                        <div className="flex items-center gap-1.5 justify-end">
+                          <span className="text-xs font-normal text-gray-500">Password:</span>
+                          <span className="font-mono font-semibold text-gray-800">
+                            {visiblePasswords[s._id] ? (s.credentials?.password || "Not set") : "••••••••"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setVisiblePasswords(prev => ({ ...prev, [s._id]: !prev[s._id] }))}
+                            className="text-gray-400 hover:text-blue-600 transition-colors"
+                            title={visiblePasswords[s._id] ? "Hide password" : "Show password"}
+                          >
+                            {visiblePasswords[s._id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          {s.profile?.mobile} · {s.profile?.email}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2 justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setEditingStudent(s);
+                            setShowAddStudent(true);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() => handleDeleteStudent(s._id)}
+                        >
+                          Delete
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setResetTarget({
+                              type: "student",
+                              id: s._id,
+                              name: `${s.profile?.firstName} ${s.profile?.lastName}`,
+                            });
+                            setResetPasswordValue(generatePassword());
+                            setResetSuccess(false);
+                          }}
+                        >
+                          <RefreshCw className="w-3 h-3 inline mr-1 text-blue-600" />
+                          Reset
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>

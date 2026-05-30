@@ -42,6 +42,11 @@ const studentSchema = new Schema(
       type: Number,
       required: true,
     },
+    academic_status: {
+      type: String,
+      enum: ["active", "graduated"],
+      default: "active",
+    },
 
     roll_no: {
       type: Number,
@@ -131,6 +136,11 @@ const studentSchema = new Schema(
       required: true,
     },
 
+    plain_password: {
+      type: String,
+      default: "",
+    },
+
     isActive: {
       type: Boolean,
       default: true,
@@ -138,7 +148,7 @@ const studentSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 export const Student = mongoose.model("Student", studentSchema);

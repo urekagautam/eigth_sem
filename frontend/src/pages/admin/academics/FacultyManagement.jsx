@@ -1,7 +1,7 @@
 import { Fragment, useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import Button from "../../components/Button";
-import { fetchFaculties, updateFaculty, deleteFaculty } from "../../services/apiFaculty";
+import Button from "../../../components/Button.jsx";
+import { fetchFaculties, updateFaculty, deleteFaculty } from "../../../services/apiFaculty";
 
 const inputClass =
   "w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600";
