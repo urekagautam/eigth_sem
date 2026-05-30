@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import mongoose from "mongoose";
 import { Student } from "../models/student.model.js";
 import { Faculty } from "../models/faculty.model.js";
 import { ApiError } from "../utils/ApiError.js";
@@ -186,13 +187,15 @@ export const createStudent = async (req, res, next) => {
 };
 
 // Get Students (with faculty/level filters)
+// Get Students (with faculty/level filters)
 export const getStudents = async (req, res, next) => {
   try {
     const { facultyId, level } = req.query;
     const filter = { isActive: true };
 
     if (facultyId) {
-      filter.facultyId = facultyId;
+      // Convert string to MongoDB ObjectId
+      filter.facultyId = new mongoose.Types.ObjectId(facultyId);
     }
     if (level) {
       filter.current_level = Number(level);

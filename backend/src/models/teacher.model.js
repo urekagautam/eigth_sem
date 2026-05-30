@@ -52,6 +52,11 @@ const teacherSchema = new Schema(
       required: true,
     },
 
+    plain_password: {
+      type: String,
+      default: "",
+    },
+
     isActive: {
       type: Boolean,
       default: true,
