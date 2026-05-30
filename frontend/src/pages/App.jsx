@@ -10,6 +10,7 @@ import Notices from "./admin/Notices";
 import Attendance from "./admin/Attendance";
 import StudentPerformance from "./admin/StudentPerformance";
 import ChangePassword from "./admin/ChangePassword";
+import FacultyManagement from "./admin/FacultyManagement";
 import NotFoundPage from "./NotFoundPage";
 import TeacherDashboard from "./teacher/Dashboard";
 import TeacherAttendance from "./teacher/Attendance";
@@ -29,6 +30,7 @@ function App() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="academics" element={<Academics />} />
+          <Route path="academics/faculties" element={<FacultyManagement />} />
           <Route path="exams" element={<Exams />} />
           <Route path="notices" element={<Notices />} />
           <Route path="attendance" element={<Attendance />} />

@@ -24,6 +24,7 @@ export default function Button({
 
   return (
     <button
+      type={props.type || "button"}
       onClick={onClick}
       disabled={disabled}
       className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`}

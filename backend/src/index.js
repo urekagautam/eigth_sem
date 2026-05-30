@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import express from "express";
 import connectDB from "./db/index.js";
 import authRoute from "./routes/auth.route.js";
+import facultyRoute from "./routes/faculty.route.js";
 
 dotenv.config();
 
@@ -22,8 +23,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use("/api/admin", authRoute);
-
+app.use("/api/admin", authRoute);app.use('/api/admin/faculties', facultyRoute);
 app.get("/", (req, res) => {
   res.send("Server is ready");
 });
