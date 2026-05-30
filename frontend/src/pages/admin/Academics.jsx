@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+﻿import { useState, useMemo, useEffect, useRef } from "react";
 // import { useState, useMemo, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -31,6 +31,13 @@ import {
   updateStudent as apiUpdateStudent,
   deleteStudent as apiDeleteStudent,
 } from "../../services/apiAddStudent";
+import TeacherProfile from "./academics/TeacherProfile";
+import {
+  fetchTeachers,
+  createTeacher as apiCreateTeacher,
+  updateTeacher as apiUpdateTeacher,
+  deleteTeacher as apiDeleteTeacher,
+} from "../../services/apiAddTeacher";
 
 const inputClass =
   "w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600";
@@ -285,13 +292,13 @@ const dummyTeachers = [
       middleName: "Prasad",
       lastName: "Gurung",
       phone: "9811000001",
+      email: "anil.gurung@campus.edu.np",
       address: "Kathmandu, Nepal",
     },
-    facultyId: "fac_bca",
-    facultyCode: "BCA",
     credentials: {
       username: "anil.gurung",
       hasPassword: true,
+      password: "",
       lastResetAt: "2024-04-01T00:00:00.000Z",
     },
     createdAt: "2023-06-01T00:00:00.000Z",
@@ -304,13 +311,13 @@ const dummyTeachers = [
       middleName: "",
       lastName: "Sharma",
       phone: "9811000002",
+      email: "sunita.sharma@campus.edu.np",
       address: "Lalitpur, Nepal",
     },
-    facultyId: "fac_bca",
-    facultyCode: "BCA",
     credentials: {
       username: "sunita.sharma",
       hasPassword: true,
+      password: "",
       lastResetAt: "2024-03-20T00:00:00.000Z",
     },
     createdAt: "2023-08-01T00:00:00.000Z",
@@ -323,13 +330,13 @@ const dummyTeachers = [
       middleName: "Kumar",
       lastName: "Adhikari",
       phone: "9811000003",
+      email: "ramesh.adhikari@campus.edu.np",
       address: "Bhaktapur, Nepal",
     },
-    facultyId: "fac_bbs",
-    facultyCode: "BBS",
     credentials: {
       username: "ramesh.adhikari",
       hasPassword: true,
+      password: "",
       lastResetAt: null,
     },
     createdAt: "2024-01-10T00:00:00.000Z",
@@ -342,6 +349,8 @@ const dummyTeachers = [
 export default function Academics() {
   const [faculties, setFaculties] = useState(initialFaculties);
   const [students, setStudents] = useState([]);
+  const [activeStudentsForAssignments, setActiveStudentsForAssignments] =
+    useState(dummyStudents.filter((student) => student.enrollment.status === "active"));
   const [teachers, setTeachers] = useState(dummyTeachers);
   const navigate = useNavigate();
 
@@ -355,7 +364,7 @@ export default function Academics() {
   const [visiblePasswords, setVisiblePasswords] = useState({});
 
   const [showAddTeacher, setShowAddTeacher] = useState(false);
-  const [teacherForm, setTeacherForm] = useState(emptyTeacherForm());
+  const [editingTeacher, setEditingTeacher] = useState(null);
   const [newTeacherCreds, setNewTeacherCreds] = useState(null);
 
   const [showAddFaculty, setShowAddFaculty] = useState(false);
@@ -409,6 +418,43 @@ export default function Academics() {
     };
     loadStudents();
   }, [filterFacultyId, filterLevel]);
+
+  useEffect(() => {
+    const loadActiveStudentsForAssignments = async () => {
+      try {
+        const response = await fetchStudents();
+        if (response?.success && Array.isArray(response.data)) {
+          setActiveStudentsForAssignments(
+            response.data.filter(
+              (student) => student.enrollment?.status === "active",
+            ),
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Failed to fetch active students for teacher assignments:",
+          error,
+        );
+      }
+    };
+
+    loadActiveStudentsForAssignments();
+  }, []);
+
+  useEffect(() => {
+    const loadTeachers = async () => {
+      try {
+        const response = await fetchTeachers();
+        if (response?.success && Array.isArray(response.data)) {
+          setTeachers(response.data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch teachers:", error);
+      }
+    };
+
+    loadTeachers();
+  }, []);
 
   const [resetTarget, setResetTarget] = useState(null);
   const [resetPasswordValue, setResetPasswordValue] = useState("");
@@ -465,6 +511,41 @@ export default function Academics() {
           s._id !== excludeSubjectId,
       )
       .map((s) => `${s.facultyCode} · ${s.levelLabel} · ${s.name}`);
+
+  const getActiveBatchesForSubject = (subject) => {
+    const batches = new Set();
+    activeStudentsForAssignments.forEach((student) => {
+      if (
+        student.admission?.facultyId === subject.facultyId &&
+        String(student.enrollment?.currentLevel) === String(subject.level) &&
+        student.enrollment?.status === "active"
+      ) {
+        batches.add(String(student.admission?.batch));
+      }
+    });
+    return Array.from(batches).sort();
+  };
+
+  const getTeacherAssignedSubjects = (teacher) => {
+    const localAssignments = subjects
+      .filter((subject) => subject.assignedTeacher?.teacherId === teacher._id)
+      .map((subject) => ({
+        _id: subject._id,
+        name: subject.name,
+        code: subject.code,
+        facultyCode: subject.facultyCode,
+        levelLabel: subject.levelLabel,
+        batches: getActiveBatchesForSubject(subject),
+      }))
+      .filter((subject) => subject.batches.length > 0);
+
+    if (localAssignments.length > 0) return localAssignments;
+
+    return (teacher.assignedSubjects || []).map((subject) => ({
+      ...subject,
+      batches: subject.batch ? [String(subject.batch)] : subject.batches || [],
+    }));
+  };
 
   const handleAddSubject = () => {
     const faculty = subjectFaculty;
@@ -625,12 +706,16 @@ export default function Academics() {
           setStudents((current) =>
             current.map((s) => (s._id === editingStudent._id ? response.data : s))
           );
+          setActiveStudentsForAssignments((current) =>
+            current.map((s) => (s._id === editingStudent._id ? response.data : s)),
+          );
           setEditingStudent(null);
         }
       } else {
         const response = await apiCreateStudent(payload);
         if (response?.success && response.data) {
           setStudents((current) => [response.data, ...current]);
+          setActiveStudentsForAssignments((current) => [response.data, ...current]);
           
           if (response.data.credentials?.password) {
             setNewStudentCreds({
@@ -653,6 +738,9 @@ export default function Academics() {
       const response = await apiDeleteStudent(studentId);
       if (response?.success) {
         setStudents((current) => current.filter((s) => s._id !== studentId));
+        setActiveStudentsForAssignments((current) =>
+          current.filter((s) => s._id !== studentId),
+        );
       }
     } catch (error) {
       console.error("Failed to delete student:", error);
@@ -660,38 +748,46 @@ export default function Academics() {
     }
   };
 
-  const handleCreateTeacher = () => {
-    if (!teacherForm.firstName || !teacherForm.lastName) return;
-    const faculty = faculties.find((f) => f._id === teacherForm.facultyId);
-    const username = generateUsername(
-      teacherForm.firstName,
-      teacherForm.lastName,
-      "teacher",
-    );
-    const password = generatePassword();
-    setNewTeacherCreds({ username, password });
+  const handleSaveTeacher = async (payload) => {
+    try {
+      if (editingTeacher) {
+        const response = await apiUpdateTeacher(editingTeacher._id, payload);
+        if (response?.success && response.data) {
+          setTeachers((current) =>
+            current.map((t) => (t._id === editingTeacher._id ? response.data : t)),
+          );
+          setEditingTeacher(null);
+        }
+      } else {
+        const response = await apiCreateTeacher(payload);
+        if (response?.success && response.data) {
+          setTeachers((current) => [response.data, ...current]);
+          if (response.data.credentials?.password) {
+            setNewTeacherCreds({
+              username: response.data.credentials.username,
+              password: response.data.credentials.password,
+            });
+          }
+        }
+      }
+      setShowAddTeacher(false);
+    } catch (error) {
+      console.error("Failed to save teacher:", error);
+      alert(error.message || "Failed to save teacher");
+    }
+  };
 
-    const doc = {
-      _id: `tch_${Date.now()}`,
-      profile: {
-        firstName: teacherForm.firstName,
-        middleName: teacherForm.middleName || "",
-        lastName: teacherForm.lastName,
-        phone: teacherForm.phone,
-        address: teacherForm.address,
-      },
-      facultyId: faculty?._id || null,
-      facultyCode: faculty?.code || null,
-      credentials: {
-        username,
-        hasPassword: true,
-        lastResetAt: new Date().toISOString(),
-      },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    setTeachers([doc, ...teachers]);
-    setTeacherForm(emptyTeacherForm());
+  const handleDeleteTeacher = async (teacherId) => {
+    if (!window.confirm("Are you sure you want to delete this teacher?")) return;
+    try {
+      const response = await apiDeleteTeacher(teacherId);
+      if (response?.success) {
+        setTeachers((current) => current.filter((t) => t._id !== teacherId));
+      }
+    } catch (error) {
+      console.error("Failed to delete teacher:", error);
+      alert(error.message || "Failed to delete teacher");
+    }
   };
 
   const handleResetPassword = async () => {
@@ -716,6 +812,7 @@ export default function Academics() {
           ),
         );
       } else {
+        await apiUpdateTeacher(resetTarget.id, { password: resetPasswordValue });
         setTeachers(
           teachers.map((t) =>
             t._id === resetTarget.id
@@ -723,6 +820,7 @@ export default function Academics() {
                   ...t,
                   credentials: {
                     ...t.credentials,
+                    password: resetPasswordValue,
                     lastResetAt: now,
                     hasPassword: true,
                   },
@@ -1357,215 +1455,206 @@ export default function Academics() {
         </div>
       )}
 
-      {/* ─── Teachers tab ─── */}
+      {/* Teachers tab */}
       {activeTab === "teachers" && (
         <div className="space-y-6">
           <div className="flex justify-end">
             <Button
               variant="primary"
-              onClick={() => setShowAddTeacher(!showAddTeacher)}
+              onClick={() => {
+                setEditingTeacher(null);
+                setShowAddTeacher(true);
+              }}
             >
               + Add Teacher
             </Button>
           </div>
 
-          {showAddTeacher && (
-            <div className="bg-white border-2 border-blue-200 rounded-lg p-8 space-y-6">
-              <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Create Teacher Profile
+          <TeacherProfile
+            isOpen={showAddTeacher}
+            onClose={() => {
+              setShowAddTeacher(false);
+              setEditingTeacher(null);
+            }}
+            onSave={handleSaveTeacher}
+            teacher={editingTeacher}
+          />
+
+          {newTeacherCreds && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+              <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4">
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <KeyRound className="w-5 h-5 text-blue-600" />
+                  Teacher Credentials Created
                 </h2>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddTeacher(false);
-                    setTeacherForm(emptyTeacherForm());
-                    setNewTeacherCreds(null);
-                  }}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Field label="First Name">
-                  <input
-                    className={inputClass}
-                    value={teacherForm.firstName}
-                    onChange={(e) =>
-                      setTeacherForm({
-                        ...teacherForm,
-                        firstName: e.target.value,
-                      })
-                    }
-                  />
-                </Field>
-                <Field label="Middle Name" optional>
-                  <input
-                    className={inputClass}
-                    value={teacherForm.middleName}
-                    onChange={(e) =>
-                      setTeacherForm({
-                        ...teacherForm,
-                        middleName: e.target.value,
-                      })
-                    }
-                  />
-                </Field>
-                <Field label="Last Name">
-                  <input
-                    className={inputClass}
-                    value={teacherForm.lastName}
-                    onChange={(e) =>
-                      setTeacherForm({
-                        ...teacherForm,
-                        lastName: e.target.value,
-                      })
-                    }
-                  />
-                </Field>
-                <Field label="Phone No.">
-                  <input
-                    className={inputClass}
-                    value={teacherForm.phone}
-                    onChange={(e) =>
-                      setTeacherForm({ ...teacherForm, phone: e.target.value })
-                    }
-                  />
-                </Field>
-                <Field label="Faculty (optional)">
-                  <select
-                    className={selectClass}
-                    value={teacherForm.facultyId}
-                    onChange={(e) =>
-                      setTeacherForm({
-                        ...teacherForm,
-                        facultyId: e.target.value,
-                      })
-                    }
-                  >
-                    <option value="">Not linked to faculty</option>
-                    {faculties.map((f) => (
-                      <option key={f._id} value={f._id}>
-                        {f.code}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <div className="md:col-span-2">
-                  <Field label="Address">
-                    <textarea
-                      className={`${inputClass} resize-none`}
-                      rows={2}
-                      value={teacherForm.address}
-                      onChange={(e) =>
-                        setTeacherForm({
-                          ...teacherForm,
-                          address: e.target.value,
-                        })
-                      }
-                    />
-                  </Field>
-                </div>
-              </div>
-
-              <div className="rounded-lg bg-gray-50 border border-gray-200 p-4 space-y-3">
-                <p className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-                  <KeyRound className="w-4 h-4" /> Login credentials
+                <p className="text-sm text-gray-600">
+                  The teacher has been saved successfully. Please copy the temporary login credentials below:
                 </p>
-                {newTeacherCreds ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                    <div className="bg-white rounded-lg px-3 py-2 border">
-                      <span className="text-gray-500">Username</span>
-                      <p className="font-mono font-semibold">
-                        {newTeacherCreds.username}
-                      </p>
-                    </div>
-                    <div className="bg-white rounded-lg px-3 py-2 border">
-                      <span className="text-gray-500">Password</span>
-                      <p className="font-mono font-semibold">
-                        {newTeacherCreds.password}
-                      </p>
-                    </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div className="bg-gray-50 rounded-lg px-3 py-2 border">
+                    <span className="text-gray-500 text-xs">Username</span>
+                    <p className="font-mono font-semibold text-gray-800">
+                      {newTeacherCreds.username}
+                    </p>
                   </div>
-                ) : (
+                  <div className="bg-gray-50 rounded-lg px-3 py-2 border">
+                    <span className="text-gray-500 text-xs">Password</span>
+                    <p className="font-mono font-semibold text-gray-800">
+                      {newTeacherCreds.password}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex justify-end pt-2">
                   <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      setNewTeacherCreds({
-                        username: generateUsername(
-                          teacherForm.firstName,
-                          teacherForm.lastName,
-                          "t",
-                        ),
-                        password: generatePassword(),
-                      })
-                    }
+                    variant="primary"
+                    onClick={() => setNewTeacherCreds(null)}
                   >
-                    Preview generated credentials
+                    Close & Copy Details
                   </Button>
-                )}
-              </div>
-
-              <div className="flex justify-end gap-3">
-                <Button
-                  variant="secondary"
-                  onClick={() => setShowAddTeacher(false)}
-                >
-                  Cancel
-                </Button>
-                <Button variant="primary" onClick={handleCreateTeacher}>
-                  Save Teacher
-                </Button>
+                </div>
               </div>
             </div>
           )}
 
           <div className="space-y-4">
-            {teachers.map((t) => (
-              <div
-                key={t._id}
-                className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm flex flex-wrap justify-between gap-4"
-              >
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">
-                    {t.profile.firstName} {t.profile.middleName}{" "}
-                    {t.profile.lastName}
-                  </h3>
-                  <p className="text-sm text-gray-600">{t.profile.address}</p>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {t.profile.phone}
-                    {t.facultyCode ? ` · ${t.facultyCode}` : ""}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-gray-600">
-                    @{t.credentials.username}
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-2"
-                    onClick={() => {
-                      setResetTarget({
-                        type: "teacher",
-                        id: t._id,
-                        name: `${t.profile.firstName} ${t.profile.lastName}`,
-                      });
-                      setResetPasswordValue(generatePassword());
-                      setResetSuccess(false);
-                    }}
-                  >
-                    Reset password
-                  </Button>
-                </div>
+            {teachers.length === 0 ? (
+              <div className="text-center py-12 bg-white border border-gray-200 rounded-lg">
+                <p className="text-gray-600">No teachers added yet.</p>
               </div>
-            ))}
+            ) : (
+              teachers.map((t) => {
+                const assignedSubjects = getTeacherAssignedSubjects(t);
+                return (
+                  <div
+                    key={t._id}
+                    className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm"
+                  >
+                    <div className="flex flex-wrap justify-between gap-4">
+                      <div className="space-y-3">
+                        <div>
+                          <h3 className="text-lg font-bold text-gray-900">
+                            {t.profile.firstName} {t.profile.middleName}{" "}
+                            {t.profile.lastName}
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            {t.profile.address || "Address not set"}
+                          </p>
+                          <p className="text-sm text-gray-600 mt-1">
+                            {t.profile.phone}
+                            {t.profile.email ? ` · ${t.profile.email}` : ""}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                            Active assigned subjects
+                          </p>
+                          {assignedSubjects.length === 0 ? (
+                            <p className="text-sm text-gray-600">
+                              No active subject assignments.
+                            </p>
+                          ) : (
+                            <div className="flex flex-wrap gap-2">
+                              {assignedSubjects.map((subject) => (
+                                <span
+                                  key={`${subject._id}-${subject.batches.join("-")}`}
+                                  className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800 border border-blue-100"
+                                >
+                                  {subject.facultyCode} · {subject.levelLabel} ·{" "}
+                                  {subject.name}
+                                  {subject.batches.length > 0
+                                    ? ` · Batch ${subject.batches.join(", ")}`
+                                    : ""}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right text-sm text-gray-600 space-y-2 flex flex-col items-end justify-between">
+                        <div className="space-y-1">
+                          <p className="font-semibold text-gray-800">
+                            <span className="text-xs font-normal text-gray-500 mr-1">
+                              Username:
+                            </span>
+                            @{t.credentials?.username}
+                          </p>
+                          <div className="flex items-center gap-1.5 justify-end">
+                            <span className="text-xs font-normal text-gray-500">
+                              Password:
+                            </span>
+                            <span className="font-mono font-semibold text-gray-800">
+                              {visiblePasswords[t._id]
+                                ? t.credentials?.password || "Not set"
+                                : "••••••••"}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setVisiblePasswords((prev) => ({
+                                  ...prev,
+                                  [t._id]: !prev[t._id],
+                                }))
+                              }
+                              className="text-gray-400 hover:text-blue-600 transition-colors"
+                              title={
+                                visiblePasswords[t._id]
+                                  ? "Hide password"
+                                  : "Show password"
+                              }
+                            >
+                              {visiblePasswords[t._id] ? (
+                                <EyeOff className="w-4 h-4" />
+                              ) : (
+                                <Eye className="w-4 h-4" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2 justify-end">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setEditingTeacher(t);
+                              setShowAddTeacher(true);
+                            }}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={() => handleDeleteTeacher(t._id)}
+                          >
+                            Delete
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setResetTarget({
+                                type: "teacher",
+                                id: t._id,
+                                name: `${t.profile.firstName} ${t.profile.lastName}`,
+                              });
+                              setResetPasswordValue(generatePassword());
+                              setResetSuccess(false);
+                            }}
+                          >
+                            <RefreshCw className="w-3 h-3 inline mr-1 text-blue-600" />
+                            Reset
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       )}
-
       {/* ─── Batch upgrade tab ─── */}
       {activeTab === "upgrade" && (
         <div className="bg-white border border-gray-200 rounded-lg p-8 space-y-6">
