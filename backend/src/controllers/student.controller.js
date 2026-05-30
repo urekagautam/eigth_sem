@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import mongoose from "mongoose";
 import { Student } from "../models/student.model.js";
 import { Faculty } from "../models/faculty.model.js";
 import { ApiError } from "../utils/ApiError.js";
@@ -194,7 +195,6 @@ export const getStudents = async (req, res, next) => {
 
     if (facultyId) {
       // Convert string to MongoDB ObjectId
-      const mongoose = require("mongoose");
       filter.facultyId = new mongoose.Types.ObjectId(facultyId);
     }
     if (level) {

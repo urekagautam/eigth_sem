@@ -390,6 +390,11 @@ export default function Academics() {
 
   useEffect(() => {
     const loadStudents = async () => {
+      if (!filterFacultyId || !filterLevel) {
+        setStudents([]);
+        return;
+      }
+
       try {
         const response = await fetchStudents({
           facultyId: filterFacultyId,
@@ -1179,7 +1184,7 @@ export default function Academics() {
                 onChange={(e) => setFilterLevel(e.target.value)}
                 disabled={!filterFacultyId}
               >
-                <option value="">All levels</option>
+                <option value="">Select an option</option>
                 {levelOptions.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
@@ -1250,7 +1255,13 @@ export default function Academics() {
 
           {/* Student list */}
           <div className="space-y-4">
-            {filteredStudents.length === 0 ? (
+            {!filterFacultyId || !filterLevel ? (
+              <div className="text-center py-12 bg-white border border-gray-200 rounded-lg">
+                <p className="text-gray-600">
+                  Please select the respective faculty and sem/year to see the student list.
+                </p>
+              </div>
+            ) : filteredStudents.length === 0 ? (
               <div className="text-center py-12 bg-white border border-gray-200 rounded-lg">
                 <p className="text-gray-600">No students match this filter.</p>
               </div>
