@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import { Student } from "../models/student.model.js";
 import { Faculty } from "../models/faculty.model.js";
+import { ClassOffering } from "../models/classOffering.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
@@ -290,6 +291,21 @@ export const batchUpgradeStudents = async (req, res, next) => {
 
     const result = await Student.updateMany(filter, update);
     const updatedCount = result.modifiedCount ?? result.nModified ?? 0;
+
+    await ClassOffering.updateMany(
+      {
+        facultyId: new mongoose.Types.ObjectId(facultyId),
+        batch: admittedBatch,
+        level: sourceLevel,
+        isActive: true,
+      },
+      {
+        $set: {
+          isActive: false,
+          endDate: new Date(),
+        },
+      },
+    );
 
     res.status(200).json(
       new ApiResponse(
