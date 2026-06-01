@@ -22,7 +22,7 @@ const marksSchema = new Schema(
 
     obtained_marks: {
       type: Number,
-      required: true,
+      default: null,
     },
 
     grade: {
@@ -38,6 +38,11 @@ const marksSchema = new Schema(
   {
     timestamps: true,
   }
+);
+
+marksSchema.index(
+  { studentId: 1, examId: 1, classOfferingId: 1 },
+  { unique: true },
 );
 
 export const Marks = mongoose.model("Marks", marksSchema);
