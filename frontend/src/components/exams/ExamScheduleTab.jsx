@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { X, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { X, Trash2, ChevronDown, ChevronRight, Pencil } from "lucide-react";
 import Button from "../Button";
 import { fetchFaculties } from "../../services/apiFaculty";
 import { fetchSubjects } from "../../services/apiSubject";
@@ -7,6 +7,7 @@ import {
   createExamRoutine,
   deleteExamRoutine,
   fetchExamSchedules,
+  updateExamRoutine,
 } from "../../services/apiExam";
 
 const inputClass =
@@ -21,7 +22,7 @@ const EXAM_TEMPLATES = [
 ];
 
 const today = new Date().toISOString().split("T")[0];
-const currentTime = new Date().toTimeString().slice(0, 5);
+const defaultExamTime = "07:00";
 
 const getLevelLabel = (faculty, level) => {
   const match = faculty?.levels?.find((item) => String(item.value) === String(level));
@@ -40,16 +41,24 @@ const getLevelOptions = (faculty) => {
   }));
 };
 
-const buildSubjectRows = (subjects) =>
-  subjects.map((subject) => ({
-    id: subject._id,
-    date: today,
-    time: currentTime,
-    subjectId: subject._id,
-    subjectName: subject.name,
-    subjectCode: subject.code || "",
-    included: true,
-  }));
+const buildSubjectRows = (subjects, exam = null) => {
+  const savedItems = new Map(
+    (exam?.items || []).map((item) => [String(item.subjectId), item]),
+  );
+
+  return subjects.map((subject) => {
+    const savedItem = savedItems.get(String(subject._id));
+    return {
+      id: subject._id,
+      date: savedItem?.date || today,
+      time: savedItem?.time || defaultExamTime,
+      subjectId: subject._id,
+      subjectName: subject.name,
+      subjectCode: subject.code || "",
+      included: exam ? Boolean(savedItem) : true,
+    };
+  });
+};
 
 export default function ExamScheduleTab() {
   const [faculties, setFaculties] = useState([]);
@@ -60,6 +69,7 @@ export default function ExamScheduleTab() {
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState("");
   const [showCreateExam, setShowCreateExam] = useState(false);
+  const [editingExam, setEditingExam] = useState(null);
   const [expandedScheduleId, setExpandedScheduleId] = useState(null);
 
   const selectedFaculty = faculties.find((faculty) => faculty._id === selectedFacultyId);
@@ -146,13 +156,29 @@ export default function ExamScheduleTab() {
       items: buildSubjectRows(subjects),
     });
     setFormError("");
+    setEditingExam(null);
   };
 
   const openCreateExam = () => {
-    setExamForm((form) => ({
-      ...form,
+    setEditingExam(null);
+    setExamForm({
+      title: "",
+      isCustom: false,
+      fullMarks: 100,
       items: buildSubjectRows(subjects),
-    }));
+    });
+    setFormError("");
+    setShowCreateExam(true);
+  };
+
+  const openEditExam = (exam) => {
+    setEditingExam(exam);
+    setExamForm({
+      title: exam.title || "",
+      isCustom: !EXAM_TEMPLATES.includes(exam.title),
+      fullMarks: exam.fullMarks || 100,
+      items: buildSubjectRows(subjects, exam),
+    });
     setFormError("");
     setShowCreateExam(true);
   };
@@ -192,7 +218,7 @@ export default function ExamScheduleTab() {
     }
 
     try {
-      await createExamRoutine({
+      const payload = {
         title: examForm.title.trim(),
         facultyId: selectedFacultyId,
         level: selectedLevel,
@@ -202,7 +228,13 @@ export default function ExamScheduleTab() {
           date: item.date,
           time: item.time,
         })),
-      });
+      };
+
+      if (editingExam) {
+        await updateExamRoutine(editingExam.id, payload);
+      } else {
+        await createExamRoutine(payload);
+      }
       await refreshSchedules();
       setShowCreateExam(false);
       resetForm();
@@ -337,17 +369,30 @@ export default function ExamScheduleTab() {
                       </p>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      deleteExam(exam.id);
-                    }}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                    title="Delete Exam"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openEditExam(exam);
+                      }}
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                      title="Edit Exam"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        deleteExam(exam.id);
+                      }}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                      title="Delete Exam"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
                 {expandedScheduleId === exam.id && (
@@ -396,7 +441,8 @@ export default function ExamScheduleTab() {
           <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-gray-200 p-6">
               <h2 className="text-2xl font-bold text-gray-900">
-                Create Exam for {selectedFaculty?.code} - {levelLabel}
+                {editingExam ? "Edit" : "Create"} Exam for{" "}
+                {selectedFaculty?.code} - {levelLabel}
               </h2>
               <button
                 type="button"
@@ -564,7 +610,9 @@ export default function ExamScheduleTab() {
                 >
                   Cancel
                 </Button>
-                <Button onClick={saveExam}>Save Exam</Button>
+                <Button onClick={saveExam}>
+                  {editingExam ? "Update Exam" : "Save Exam"}
+                </Button>
               </div>
             </div>
           </div>

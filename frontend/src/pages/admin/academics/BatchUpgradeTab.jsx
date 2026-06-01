@@ -101,14 +101,14 @@ export default function BatchUpgradeTab({ faculties, onComplete }) {
         const sourceStudents = Array.isArray(sourceResponse?.data)
           ? sourceResponse.data
           : [];
-        const sourceBatches = new Set(
-          sourceStudents.map((student) => String(student.admission?.batch)),
-        );
+        const sourceBatches = Array.from(
+          new Set(sourceStudents.map((student) => String(student.admission?.batch))),
+        ).sort((a, b) => Number(b) - Number(a));
         setForm((current) => {
-          if (!current.batch || sourceBatches.has(String(current.batch))) {
+          if (current.batch && sourceBatches.includes(String(current.batch))) {
             return current;
           }
-          return { ...current, batch: "" };
+          return { ...current, batch: sourceBatches[0] || "" };
         });
 
         if (selectedFaculty && Number(form.fromLevel) < Number(selectedFaculty.maxLevel)) {

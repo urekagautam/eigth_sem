@@ -41,6 +41,15 @@ export const createExamRoutine = async (exam) => {
   return handleResponse(response);
 };
 
+export const updateExamRoutine = async (examId, exam) => {
+  const response = await fetch(`${EXAMS_API_URL}/${examId}`, {
+    method: "PUT",
+    headers: getHeaders(),
+    body: JSON.stringify(exam),
+  });
+  return handleResponse(response);
+};
+
 export const deleteExamRoutine = async (examId) => {
   const response = await fetch(`${EXAMS_API_URL}/${examId}`, {
     method: "DELETE",

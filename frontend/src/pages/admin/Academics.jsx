@@ -482,6 +482,7 @@ export default function Academics() {
     });
     return Array.from(batches).sort((a, b) => Number(b) - Number(a));
   }, [students]);
+  const selectedFilterBatch = filterBatch || batchOptions[0] || "";
 
   const getTeacherAssignedSubjects = (teacher) => {
     return (teacher.assignedSubjects || []).map((subject) => ({
@@ -502,7 +503,11 @@ export default function Academics() {
       if (s.enrollment.status === "graduated") return false;
       if (String(s.enrollment.currentLevel) !== filterLevel) return false;
     }
-    if (filterBatch && String(s.admission.batch) !== filterBatch) return false;
+    if (
+      selectedFilterBatch &&
+      String(s.admission.batch) !== selectedFilterBatch
+    )
+      return false;
     return true;
   });
 
@@ -995,7 +1000,7 @@ export default function Academics() {
               <label className={labelClass}>Batch</label>
               <select
                 className={selectClass}
-                value={filterBatch}
+                value={selectedFilterBatch}
                 onChange={(e) => setFilterBatch(e.target.value)}
                 disabled={!filterFacultyId || !filterLevel}
               >
@@ -1076,7 +1081,7 @@ export default function Academics() {
                   Please select the respective faculty and sem/year to choose a batch.
                 </p>
               </div>
-            ) : !filterBatch ? (
+            ) : !selectedFilterBatch ? (
               <div className="text-center py-12 bg-white border border-gray-200 rounded-lg">
                 <p className="text-gray-600">
                   Please select a batch to see students from only that batch.

@@ -221,6 +221,85 @@ export const createExamSchedule = async (req, res, next) => {
   }
 };
 
+const buildExamItems = async ({ items, facultyId, level }) => {
+  const subjectIds = items.map((item) => item.subjectId);
+  const hasInvalidSubjectId = subjectIds.some(
+    (subjectId) => !mongoose.Types.ObjectId.isValid(subjectId),
+  );
+  if (hasInvalidSubjectId) {
+    throw new ApiError(400, "Every schedule row needs a valid subject");
+  }
+
+  const subjects = await Subject.find({
+    _id: { $in: subjectIds },
+    facultyId,
+    level,
+  }).select("_id");
+  const validSubjectIds = new Set(subjects.map((subject) => subject._id.toString()));
+
+  const seenSubjects = new Set();
+  return items.map((item) => {
+    const subjectId = item.subjectId?.toString();
+    if (!validSubjectIds.has(subjectId)) {
+      throw new ApiError(400, "Selected subject does not belong to this class");
+    }
+    if (seenSubjects.has(subjectId)) {
+      throw new ApiError(400, "A subject can be scheduled only once in an exam");
+    }
+    seenSubjects.add(subjectId);
+
+    if (!item.date || !item.time) {
+      throw new ApiError(400, "Date and time are required for every subject");
+    }
+
+    return {
+      subjectId,
+      examDate: new Date(item.date),
+      examTime: item.time,
+    };
+  });
+};
+
+export const updateExamSchedule = async (req, res, next) => {
+  try {
+    const { examId } = req.params;
+    const { title, fullMarks, items } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(examId)) {
+      throw new ApiError(400, "Valid exam is required");
+    }
+    if (!title?.trim()) {
+      throw new ApiError(400, "Exam title is required");
+    }
+    if (!Array.isArray(items) || !items.length) {
+      throw new ApiError(400, "At least one subject schedule is required");
+    }
+
+    const exam = await Exam.findById(examId);
+    if (!exam) throw new ApiError(404, "Exam not found");
+
+    exam.title = title.trim();
+    exam.fullMarks = Number(fullMarks) || 100;
+    exam.items = await buildExamItems({
+      items,
+      facultyId: exam.facultyId,
+      level: exam.level,
+    });
+
+    await exam.save();
+
+    const populated = await Exam.findById(exam._id)
+      .populate("facultyId")
+      .populate("items.subjectId");
+
+    res
+      .status(200)
+      .json(new ApiResponse(200, normalizeExam(populated), "Exam schedule updated successfully"));
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const deleteExamSchedule = async (req, res, next) => {
   try {
     const { examId } = req.params;
