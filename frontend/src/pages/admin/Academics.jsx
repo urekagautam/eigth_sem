@@ -490,6 +490,11 @@ export default function Academics() {
     }));
   };
 
+  const assignmentBadgeClass = (status) =>
+    status === "completed"
+      ? "rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-800 border border-green-100"
+      : "rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800 border border-blue-100";
+
   const filteredStudents = students.filter((s) => {
     if (filterFacultyId && s.admission.facultyId !== filterFacultyId)
       return false;
@@ -1269,19 +1274,22 @@ export default function Academics() {
                           </p>
                           {assignedSubjects.length === 0 ? (
                             <p className="text-sm text-gray-600">
-                              No active subject assignments.
+                              No subject assignments.
                             </p>
                           ) : (
                             <div className="flex flex-wrap gap-2">
                               {assignedSubjects.map((subject) => (
                                 <span
                                   key={`${subject._id}-${subject.batches.join("-")}`}
-                                  className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800 border border-blue-100"
+                                  className={assignmentBadgeClass(subject.status)}
                                 >
                                   {subject.facultyCode} · {subject.levelLabel} ·{" "}
                                   {subject.name}
                                   {subject.batches.length > 0
                                     ? ` · Batch ${subject.batches.join(", ")}`
+                                    : ""}
+                                  {subject.statusLabel
+                                    ? ` · ${subject.statusLabel}`
                                     : ""}
                                 </span>
                               ))}

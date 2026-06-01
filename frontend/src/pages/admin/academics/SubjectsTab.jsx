@@ -65,6 +65,11 @@ function Field({ label, children, optional }) {
   );
 }
 
+const assignmentBadgeClass = (status) =>
+  status === "completed"
+    ? "rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-800 border border-green-100"
+    : "rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800 border border-blue-100";
+
 export default function SubjectsTab({
   faculties,
   teachers,
@@ -130,14 +135,30 @@ export default function SubjectsTab({
     loadSubjects();
   }, [subjectFacultyId, subjectLevel, subjectBatch]);
 
-  const getTeacherOtherAssignments = (teacherId, excludeSubjectId) =>
-    subjects
+  const getTeacherOtherAssignments = (teacherId, excludeSubjectId) => {
+    const teacher = teachers.find((item) => item._id === teacherId);
+    return (teacher?.assignedSubjects || [])
       .filter(
-        (s) =>
-          s.assignedTeacher?.teacherId === teacherId &&
-          s._id !== excludeSubjectId,
+        (assignment) =>
+          String(assignment.subjectId) !== String(excludeSubjectId),
       )
-      .map((s) => `${s.facultyCode} - ${s.levelLabel} - Batch ${subjectBatch} - ${s.name}`);
+      .map((assignment) => {
+        const batch = assignment.batch || assignment.batches?.[0];
+        return {
+          id: `${assignment._id}-${batch || ""}`,
+          label: [
+            assignment.facultyCode,
+            assignment.levelLabel,
+            batch ? `Batch ${batch}` : "",
+            assignment.name,
+            assignment.statusLabel,
+          ]
+            .filter(Boolean)
+            .join(" - "),
+          status: assignment.status,
+        };
+      });
+  };
 
   const handleAddSubject = async () => {
     const faculty = subjectFaculty;
@@ -547,14 +568,19 @@ export default function SubjectsTab({
                           No other subject assignments.
                         </p>
                       ) : (
-                        <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                        <div className="flex flex-wrap gap-2">
                           {getTeacherOtherAssignments(
                             sub.assignedTeacher.teacherId,
                             sub._id,
-                          ).map((line) => (
-                            <li key={line}>{line}</li>
+                          ).map((assignment) => (
+                            <span
+                              key={assignment.id}
+                              className={assignmentBadgeClass(assignment.status)}
+                            >
+                              {assignment.label}
+                            </span>
                           ))}
-                        </ul>
+                        </div>
                       )}
                     </div>
                   )}
