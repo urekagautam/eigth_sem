@@ -57,7 +57,7 @@ function App() {
           <Route path="resources" element={<StudentResources />} />
         </Route>
         <Route path="/login" element={<Login />} />
-        <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>

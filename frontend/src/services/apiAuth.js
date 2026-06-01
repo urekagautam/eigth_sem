@@ -1,12 +1,12 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
-export async function loginAdmin(email, password) {
+export async function loginUser({ role, identifier, password }) {
   const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ role, identifier, password }),
   });
 
   const result = await response.json();
@@ -16,4 +16,8 @@ export async function loginAdmin(email, password) {
   }
 
   return result;
+}
+
+export async function loginAdmin(email, password) {
+  return loginUser({ role: "admin", identifier: email, password });
 }

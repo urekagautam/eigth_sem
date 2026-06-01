@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { BookOpen } from "lucide-react"
 import Button from "../../components/Button"
-import { loginAdmin } from "../../services/apiAuth"
+import { loginUser } from "../../services/apiAuth"
 
 const roles = [
   { value: "admin", label: "Admin" },
@@ -21,30 +21,20 @@ export default function Login() {
   const handleSubmit = async (event) => {
     event.preventDefault()
 
-    if (role === "admin") {
-      setError("")
-      setLoading(true)
+    setError("")
+    setLoading(true)
 
-      try {
-        const response = await loginAdmin(identifier, password)
-        localStorage.setItem("examifyToken", response.data.token)
-        localStorage.setItem("examifyUser", JSON.stringify(response.data.user))
-        navigate("/admin/dashboard")
-      } catch (err) {
-        setError(err.message || "Login failed. Please check your credentials.")
-      } finally {
-        setLoading(false)
-      }
-
-      return
+    try {
+      const response = await loginUser({ role, identifier, password })
+      const userRole = response.data.user.role
+      localStorage.setItem("examifyToken", response.data.token)
+      localStorage.setItem("examifyUser", JSON.stringify(response.data.user))
+      navigate(`/${userRole}/dashboard`)
+    } catch (err) {
+      setError(err.message || "Login failed. Please check your credentials.")
+    } finally {
+      setLoading(false)
     }
-
-    if (role === "teacher") {
-      navigate("/teacher/dashboard")
-      return
-    }
-
-    navigate("/")
   }
 
   const isAdmin = role === "admin"
