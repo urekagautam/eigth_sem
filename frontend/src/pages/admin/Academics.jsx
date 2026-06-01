@@ -482,6 +482,7 @@ export default function Academics() {
     });
     return Array.from(batches).sort((a, b) => Number(b) - Number(a));
   }, [students]);
+  const selectedFilterBatch = filterBatch || batchOptions[0] || "";
 
   const getTeacherAssignedSubjects = (teacher) => {
     return (teacher.assignedSubjects || []).map((subject) => ({
@@ -490,6 +491,11 @@ export default function Academics() {
     }));
   };
 
+  const assignmentBadgeClass = (status) =>
+    status === "completed"
+      ? "rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-800 border border-green-100"
+      : "rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800 border border-blue-100";
+
   const filteredStudents = students.filter((s) => {
     if (filterFacultyId && s.admission.facultyId !== filterFacultyId)
       return false;
@@ -497,7 +503,11 @@ export default function Academics() {
       if (s.enrollment.status === "graduated") return false;
       if (String(s.enrollment.currentLevel) !== filterLevel) return false;
     }
-    if (filterBatch && String(s.admission.batch) !== filterBatch) return false;
+    if (
+      selectedFilterBatch &&
+      String(s.admission.batch) !== selectedFilterBatch
+    )
+      return false;
     return true;
   });
 
@@ -990,7 +1000,7 @@ export default function Academics() {
               <label className={labelClass}>Batch</label>
               <select
                 className={selectClass}
-                value={filterBatch}
+                value={selectedFilterBatch}
                 onChange={(e) => setFilterBatch(e.target.value)}
                 disabled={!filterFacultyId || !filterLevel}
               >
@@ -1071,7 +1081,7 @@ export default function Academics() {
                   Please select the respective faculty and sem/year to choose a batch.
                 </p>
               </div>
-            ) : !filterBatch ? (
+            ) : !selectedFilterBatch ? (
               <div className="text-center py-12 bg-white border border-gray-200 rounded-lg">
                 <p className="text-gray-600">
                   Please select a batch to see students from only that batch.
@@ -1269,19 +1279,22 @@ export default function Academics() {
                           </p>
                           {assignedSubjects.length === 0 ? (
                             <p className="text-sm text-gray-600">
-                              No active subject assignments.
+                              No subject assignments.
                             </p>
                           ) : (
                             <div className="flex flex-wrap gap-2">
                               {assignedSubjects.map((subject) => (
                                 <span
                                   key={`${subject._id}-${subject.batches.join("-")}`}
-                                  className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800 border border-blue-100"
+                                  className={assignmentBadgeClass(subject.status)}
                                 >
                                   {subject.facultyCode} · {subject.levelLabel} ·{" "}
                                   {subject.name}
                                   {subject.batches.length > 0
                                     ? ` · Batch ${subject.batches.join(", ")}`
+                                    : ""}
+                                  {subject.statusLabel
+                                    ? ` · ${subject.statusLabel}`
                                     : ""}
                                 </span>
                               ))}

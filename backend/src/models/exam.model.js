@@ -1,37 +1,77 @@
 import mongoose, { Schema } from "mongoose";
 
+const examItemSchema = new Schema(
+  {
+    subjectId: {
+      type: Schema.Types.ObjectId,
+      ref: "Subject",
+      required: true,
+    },
+
+    examDate: {
+      type: Date,
+      required: true,
+    },
+
+    examTime: {
+      type: String,
+      required: true,
+      trim: true,
+      match: [/^([01]\d|2[0-3]):[0-5]\d$/, "Exam time must be HH:mm"],
+    },
+  },
+  { _id: true },
+);
+
 const examSchema = new Schema(
   {
-    exam_name: {
+    title: {
       type: String,
       required: true,
       trim: true,
     },
 
-    classOfferingId: {
+    facultyId: {
       type: Schema.Types.ObjectId,
-      ref: "ClassOffering",
+      ref: "Faculty",
       required: true,
     },
 
-    exam_date: {
-      type: Date,
-      required: true,
-    },
-
-    total_marks: {
+    level: {
       type: Number,
       required: true,
     },
 
-    pass_marks: {
+    batch: {
       type: Number,
       required: true,
+    },
+
+    fullMarks: {
+      type: Number,
+      required: true,
+      default: 100,
+      min: 1,
+    },
+
+    published: {
+      type: Boolean,
+      default: false,
+    },
+
+    items: {
+      type: [examItemSchema],
+      validate: {
+        validator: (items) => Array.isArray(items) && items.length > 0,
+        message: "At least one exam subject is required",
+      },
     },
   },
   {
     timestamps: true,
   }
 );
+
+examSchema.index({ facultyId: 1, level: 1, batch: 1, createdAt: -1 });
 
 export const Exam = mongoose.model("Exam", examSchema);

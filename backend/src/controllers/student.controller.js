@@ -269,6 +269,23 @@ export const batchUpgradeStudents = async (req, res, next) => {
       if (targetLevel > faculty.max_level) {
         throw new ApiError(400, "Use graduate for students who completed the final level");
       }
+
+      const occupiedHigherLevelCount = await Student.countDocuments({
+        facultyId: new mongoose.Types.ObjectId(facultyId),
+        current_level: targetLevel,
+        isActive: true,
+        academic_status: { $ne: "graduated" },
+      });
+
+      if (occupiedHigherLevelCount > 0) {
+        const targetLabel =
+          faculty.levels?.find((level) => level.value === targetLevel)?.label ||
+          `Level ${targetLevel}`;
+        throw new ApiError(
+          409,
+          `${targetLabel} already has active students. This higher semester/year should be upgraded first.`,
+        );
+      }
     }
 
     const filter = {

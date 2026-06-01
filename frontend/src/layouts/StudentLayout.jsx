@@ -23,7 +23,11 @@ export default function StudentLayout() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleLogout = () => navigate("/");
+  const handleLogout = () => {
+    localStorage.removeItem("examifyToken");
+    localStorage.removeItem("examifyUser");
+    navigate("/login");
+  };
 
   const navButtonClass = (isActive) =>
     [

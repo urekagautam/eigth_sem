@@ -65,6 +65,11 @@ function Field({ label, children, optional }) {
   );
 }
 
+const assignmentBadgeClass = (status) =>
+  status === "completed"
+    ? "rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-800 border border-green-100"
+    : "rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800 border border-blue-100";
+
 export default function SubjectsTab({
   faculties,
   teachers,
@@ -100,6 +105,7 @@ export default function SubjectsTab({
     });
     return Array.from(batches).sort((a, b) => Number(b) - Number(a));
   }, [activeStudentsForAssignments, subjectFacultyId, subjectLevel]);
+  const selectedSubjectBatch = subjectBatch || batchOptions[0] || "";
 
   useEffect(() => {
     const loadSubjects = async () => {
@@ -113,7 +119,7 @@ export default function SubjectsTab({
         const response = await fetchSubjects({
           facultyId: subjectFacultyId,
           level: subjectLevel,
-          batch: subjectBatch || undefined,
+          batch: selectedSubjectBatch || undefined,
         });
         setSubjects(Array.isArray(response?.data) ? response.data : []);
       } catch (error) {
@@ -128,16 +134,32 @@ export default function SubjectsTab({
     };
 
     loadSubjects();
-  }, [subjectFacultyId, subjectLevel, subjectBatch]);
+  }, [subjectFacultyId, subjectLevel, selectedSubjectBatch]);
 
-  const getTeacherOtherAssignments = (teacherId, excludeSubjectId) =>
-    subjects
+  const getTeacherOtherAssignments = (teacherId, excludeSubjectId) => {
+    const teacher = teachers.find((item) => item._id === teacherId);
+    return (teacher?.assignedSubjects || [])
       .filter(
-        (s) =>
-          s.assignedTeacher?.teacherId === teacherId &&
-          s._id !== excludeSubjectId,
+        (assignment) =>
+          String(assignment.subjectId) !== String(excludeSubjectId),
       )
-      .map((s) => `${s.facultyCode} - ${s.levelLabel} - Batch ${subjectBatch} - ${s.name}`);
+      .map((assignment) => {
+        const batch = assignment.batch || assignment.batches?.[0];
+        return {
+          id: `${assignment._id}-${batch || ""}`,
+          label: [
+            assignment.facultyCode,
+            assignment.levelLabel,
+            batch ? `Batch ${batch}` : "",
+            assignment.name,
+            assignment.statusLabel,
+          ]
+            .filter(Boolean)
+            .join(" - "),
+          status: assignment.status,
+        };
+      });
+  };
 
   const handleAddSubject = async () => {
     const faculty = subjectFaculty;
@@ -173,7 +195,7 @@ export default function SubjectsTab({
       const response = await assignSubjectTeacher(
         subjectId,
         teacherId,
-        subjectBatch,
+        selectedSubjectBatch,
       );
       if (response?.success && response.data) {
         setSubjects((current) =>
@@ -466,7 +488,7 @@ export default function SubjectsTab({
                 <Field label="Batch">
                   <select
                     className={selectClass}
-                    value={subjectBatch}
+                    value={selectedSubjectBatch}
                     onChange={(e) => {
                       setSubjectBatch(e.target.value);
                       setNotice({ type: "", message: "" });
@@ -482,7 +504,7 @@ export default function SubjectsTab({
                 </Field>
               </div>
 
-              {!subjectBatch ? (
+              {!selectedSubjectBatch ? (
                 <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 py-10 text-center text-gray-600">
                   Select a batch to view and assign teachers for these subjects.
                 </div>
@@ -502,16 +524,16 @@ export default function SubjectsTab({
                         - {sub.facultyCode} - {sub.levelLabel}
                       </p>
                     </div>
-                    {subjectBatch && sub.assignedTeacher ? (
+                    {selectedSubjectBatch && sub.assignedTeacher ? (
                       <div className="flex flex-wrap gap-2">
                         <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">
                           {sub.assignedTeacher.fullName}
                         </span>
                         <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800 border border-blue-100">
-                        Batch {subjectBatch}
+                        Batch {selectedSubjectBatch}
                       </span>
                     </div>
-                    ) : subjectBatch ? (
+                    ) : selectedSubjectBatch ? (
                       <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
                         No teacher assigned
                       </span>
@@ -522,10 +544,10 @@ export default function SubjectsTab({
                     )}
                   </div>
 
-                  {subjectBatch && (
+                  {selectedSubjectBatch && (
                     <div>
                       <label className={labelClass}>
-                        Assign / change teacher for Batch {subjectBatch}
+                        Assign / change teacher for Batch {selectedSubjectBatch}
                       </label>
                       <SearchableTeacherSelect
                         subjectId={sub._id}
@@ -534,7 +556,7 @@ export default function SubjectsTab({
                     </div>
                   )}
 
-                  {subjectBatch && sub.assignedTeacher && (
+                  {selectedSubjectBatch && sub.assignedTeacher && (
                     <div className="rounded-lg bg-gray-50 border border-gray-100 px-4 py-3">
                       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
                         Other subjects for this teacher
@@ -547,14 +569,19 @@ export default function SubjectsTab({
                           No other subject assignments.
                         </p>
                       ) : (
-                        <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                        <div className="flex flex-wrap gap-2">
                           {getTeacherOtherAssignments(
                             sub.assignedTeacher.teacherId,
                             sub._id,
-                          ).map((line) => (
-                            <li key={line}>{line}</li>
+                          ).map((assignment) => (
+                            <span
+                              key={assignment.id}
+                              className={assignmentBadgeClass(assignment.status)}
+                            >
+                              {assignment.label}
+                            </span>
                           ))}
-                        </ul>
+                        </div>
                       )}
                     </div>
                   )}

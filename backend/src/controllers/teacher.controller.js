@@ -47,7 +47,6 @@ const getActiveAssignedSubjectsByTeacher = async (teacherIds) => {
 
   const offerings = await ClassOffering.find({
     teacherId: { $in: teacherIds },
-    isActive: true,
   })
     .populate("facultyId")
     .populate("subjectId")
@@ -59,11 +58,18 @@ const getActiveAssignedSubjectsByTeacher = async (teacherIds) => {
   }).select("facultyId current_level admitted_batch");
 
   const activeBatchMap = new Map();
+  const latestActiveBatchMap = new Map();
   activeStudents.forEach((student) => {
     const key = `${student.facultyId?.toString()}-${student.current_level}`;
     const batches = activeBatchMap.get(key) || new Set();
-    batches.add(String(student.admitted_batch));
+    const batch = Number(student.admitted_batch);
+    batches.add(String(batch));
     activeBatchMap.set(key, batches);
+
+    const latestBatch = latestActiveBatchMap.get(key) || 0;
+    if (batch > latestBatch) {
+      latestActiveBatchMap.set(key, batch);
+    }
   });
 
   const map = new Map();
@@ -75,7 +81,13 @@ const getActiveAssignedSubjectsByTeacher = async (teacherIds) => {
     const activeBatches = activeBatchMap.get(
       `${faculty._id.toString()}-${offering.level}`,
     );
-    if (!activeBatches?.has(String(offering.batch))) return;
+    const latestActiveBatch = latestActiveBatchMap.get(
+      `${faculty._id.toString()}-${offering.level}`,
+    );
+    const isCurrentBatch =
+      offering.isActive &&
+      activeBatches?.has(String(offering.batch)) &&
+      Number(offering.batch) === Number(latestActiveBatch);
 
     const teacherId = offering.teacherId.toString();
     const current = map.get(teacherId) || [];
@@ -92,6 +104,8 @@ const getActiveAssignedSubjectsByTeacher = async (teacherIds) => {
         faculty.levels?.find((level) => level.value === offering.level)?.label ||
         `Level ${offering.level}`,
       batch: String(offering.batch),
+      status: isCurrentBatch ? "current" : "completed",
+      statusLabel: isCurrentBatch ? "Current" : "Completed",
     });
     map.set(teacherId, current);
   });

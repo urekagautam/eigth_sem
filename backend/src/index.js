@@ -6,6 +6,9 @@ import facultyRoute from "./routes/faculty.route.js";
 import studentRoute from "./routes/student.route.js";
 import subjectRoute from "./routes/subject.route.js";
 import teacherRoute from "./routes/teacher.route.js";
+import examRoute from "./routes/exam.route.js";
+import performanceRoute from "./routes/performance.route.js";
+import teacherMarksRoute from "./routes/teacherMarks.route.js";
 
 dotenv.config();
 
@@ -31,6 +34,9 @@ app.use('/api/admin/faculties', facultyRoute);
 app.use('/api/admin/students', studentRoute);
 app.use('/api/admin/subjects', subjectRoute);
 app.use('/api/admin/teachers', teacherRoute);
+app.use('/api/admin/exams', examRoute);
+app.use('/api/admin/performance', performanceRoute);
+app.use('/api/teacher/marks', teacherMarksRoute);
 app.get("/", (req, res) => {
   res.send("Server is ready");
 });

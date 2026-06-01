@@ -52,6 +52,7 @@ export default function BatchUpgradeTab({ faculties, onComplete }) {
     batch: "",
   });
   const [levelStudents, setLevelStudents] = useState([]);
+  const [higherLevelStudents, setHigherLevelStudents] = useState([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState({ type: "", message: "" });
@@ -78,23 +79,52 @@ export default function BatchUpgradeTab({ faculties, onComplete }) {
       ).length,
     [form.batch, levelStudents],
   );
+  const occupiedHigherLevelCount = higherLevelStudents.length;
 
   useEffect(() => {
     const loadStudentsForLevel = async () => {
       if (!form.facultyId || !form.fromLevel) {
         setLevelStudents([]);
+        setHigherLevelStudents([]);
         return;
       }
 
       setLoadingStudents(true);
       try {
-        const response = await fetchStudents({
+        const sourceResponse = await fetchStudents({
           facultyId: form.facultyId,
           level: form.fromLevel,
         });
-        setLevelStudents(Array.isArray(response?.data) ? response.data : []);
+        setLevelStudents(
+          Array.isArray(sourceResponse?.data) ? sourceResponse.data : [],
+        );
+        const sourceStudents = Array.isArray(sourceResponse?.data)
+          ? sourceResponse.data
+          : [];
+        const sourceBatches = Array.from(
+          new Set(sourceStudents.map((student) => String(student.admission?.batch))),
+        ).sort((a, b) => Number(b) - Number(a));
+        setForm((current) => {
+          if (current.batch && sourceBatches.includes(String(current.batch))) {
+            return current;
+          }
+          return { ...current, batch: sourceBatches[0] || "" };
+        });
+
+        if (selectedFaculty && Number(form.fromLevel) < Number(selectedFaculty.maxLevel)) {
+          const higherResponse = await fetchStudents({
+            facultyId: form.facultyId,
+            level: Number(form.fromLevel) + 1,
+          });
+          setHigherLevelStudents(
+            Array.isArray(higherResponse?.data) ? higherResponse.data : [],
+          );
+        } else {
+          setHigherLevelStudents([]);
+        }
       } catch (error) {
         setLevelStudents([]);
+        setHigherLevelStudents([]);
         setNotice({
           type: "error",
           message: error.message || "Could not load students for this level.",
@@ -105,14 +135,7 @@ export default function BatchUpgradeTab({ faculties, onComplete }) {
     };
 
     loadStudentsForLevel();
-  }, [form.facultyId, form.fromLevel]);
-
-  useEffect(() => {
-    setForm((current) => {
-      if (!current.batch || batches.includes(String(current.batch))) return current;
-      return { ...current, batch: "" };
-    });
-  }, [batches]);
+  }, [form.facultyId, form.fromLevel, selectedFaculty]);
 
   const updateForm = (changes) => {
     setNotice({ type: "", message: "" });
@@ -137,6 +160,17 @@ export default function BatchUpgradeTab({ faculties, onComplete }) {
       setNotice({
         type: "error",
         message: "No active students found for this selection.",
+      });
+      return;
+    }
+
+    if (!isFinalLevel && occupiedHigherLevelCount > 0) {
+      setNotice({
+        type: "error",
+        message: `${getLevelLabel(
+          selectedFaculty.structureType,
+          nextLevel,
+        )} already has active students. This higher semester/year should be upgraded first.`,
       });
       return;
     }
@@ -269,6 +303,14 @@ export default function BatchUpgradeTab({ faculties, onComplete }) {
           </div>
         )}
       </div>
+
+      {form.batch && !isFinalLevel && occupiedHigherLevelCount > 0 && (
+        <p className="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {getLevelLabel(selectedFaculty.structureType, nextLevel)} already has{" "}
+          {occupiedHigherLevelCount} active student(s). This higher
+          semester/year should be upgraded first.
+        </p>
+      )}
 
       {selectedFaculty && isFinalLevel && (
         <label className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-100 px-4 py-3 text-sm font-medium text-green-800">

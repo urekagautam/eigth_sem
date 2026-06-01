@@ -33,7 +33,9 @@ export default function AdminLayout() {
   const location = useLocation();
 
   const handleLogout = () => {
-    navigate("/");
+    localStorage.removeItem("examifyToken");
+    localStorage.removeItem("examifyUser");
+    navigate("/login");
   };
 
   const navButtonClass = (isActive) =>

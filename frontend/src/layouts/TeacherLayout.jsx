@@ -8,7 +8,6 @@ import {
   ClipboardList,
   TrendingUp,
   BookOpen,
-  KeyRound,
 } from "lucide-react";
 
 const menuItems = [
@@ -22,9 +21,18 @@ export default function TeacherLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
+  const currentUser = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("examifyUser") || "{}");
+    } catch {
+      return {};
+    }
+  })();
 
   const handleLogout = () => {
-    navigate("/");
+    localStorage.removeItem("examifyToken");
+    localStorage.removeItem("examifyUser");
+    navigate("/login");
   };
 
   const navButtonClass = (isActive) =>
@@ -47,9 +55,14 @@ export default function TeacherLayout() {
               <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center text-white font-bold text-lg shrink-0">
                 T
               </div>
-              <span className="text-lg font-bold text-gray-800 truncate tracking-tight">
-                Teacher
-              </span>
+              <div className="min-w-0">
+                <p className="text-lg font-bold text-gray-800 truncate tracking-tight">
+                  Teacher
+                </p>
+                <p className="text-xs font-medium text-gray-500 truncate">
+                  {currentUser.username || "teacher account"}
+                </p>
+              </div>
             </div>
           )}
           <button
