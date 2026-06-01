@@ -145,6 +145,24 @@ const studentSchema = new Schema(
       type: Boolean,
       default: true,
     },
+
+    performance_summary: {
+      cumulative_gpa: {
+        type: Number,
+        default: null,
+      },
+      term_count: {
+        type: Number,
+        default: 0,
+      },
+      last_exam_id: {
+        type: Schema.Types.ObjectId,
+        ref: "Exam",
+      },
+      updated_at: {
+        type: Date,
+      },
+    },
   },
   {
     timestamps: true,
