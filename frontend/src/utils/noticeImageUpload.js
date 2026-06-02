@@ -1,17 +1,21 @@
-import { NOTICE_IMAGE_UPLOAD_PATH } from "../constants/uploads"
+import axios from "axios";
+
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 /**
- * Upload notice image to the server.
+ * Upload notice image using multipart/form-data to the backend upload endpoint.
  * @param {File} file
  * @returns {Promise<{ imagePath: string }>}
  */
 export async function uploadNoticeImage(file) {
-  // TODO: replace with real API call, e.g.:
-  // const formData = new FormData()
-  // formData.append("image", file)
-  // const res = await fetch("/api/notices/upload", { method: "POST", body: formData })
-  // return res.json()
+  const formData = new FormData();
+  formData.append("image", file);
 
-  void file
-  return { imagePath: NOTICE_IMAGE_UPLOAD_PATH }
+  const res = await axios.post(`${API_BASE_URL}/api/notices/upload`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+
+  // response: { status, data: { imagePath: 'https://...' } }
+  return res.data.data;
 }
