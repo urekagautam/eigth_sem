@@ -204,12 +204,22 @@ export default function Notices() {
     if (!editingNotice) return;
 
     if (editingNotice.type === "text") {
-      const titleHtml = titleRef.current ? titleRef.current.innerHTML : formData.title;
-      const descHtml = descRef.current ? descRef.current.innerHTML : formData.description;
-      const titlePlain = titleRef.current ? titleRef.current.innerText.trim() : (formData.title || "").trim();
-      const descPlain = descRef.current ? descRef.current.innerText.trim() : (formData.description || "").trim();
+      const titleHtml = titleRef.current
+        ? titleRef.current.innerHTML
+        : formData.title;
+      const descHtml = descRef.current
+        ? descRef.current.innerHTML
+        : formData.description;
+      const titlePlain = titleRef.current
+        ? titleRef.current.innerText.trim()
+        : (formData.title || "").trim();
+      const descPlain = descRef.current
+        ? descRef.current.innerText.trim()
+        : (formData.description || "").trim();
       if (!titlePlain && !descPlain) {
-        setImageUploadError("Please add a title or description for this notice.");
+        setImageUploadError(
+          "Please add a title or description for this notice.",
+        );
         return;
       }
       setIsPublishing(true);
@@ -477,7 +487,13 @@ export default function Notices() {
                 variant="primary"
                 disabled={!canPublishTextNotice && !canPublishImageNotice}
               >
-                {isPublishing ? (editingNotice ? "Updating..." : "Publishing...") : (editingNotice ? "Update Notice" : "Publish Notice")}
+                {isPublishing
+                  ? editingNotice
+                    ? "Updating..."
+                    : "Publishing..."
+                  : editingNotice
+                    ? "Update Notice"
+                    : "Publish Notice"}
               </Button>
             </div>
           </div>
