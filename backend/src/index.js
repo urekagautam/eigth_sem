@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import express from "express";
 import connectDB from "./db/index.js";
+
 import authRoute from "./routes/auth.route.js";
 import facultyRoute from "./routes/faculty.route.js";
 import studentRoute from "./routes/student.route.js";
@@ -10,29 +11,35 @@ import examRoute from "./routes/exam.route.js";
 import performanceRoute from "./routes/performance.route.js";
 import teacherMarksRoute from "./routes/teacherMarks.route.js";
 import noticeRoute from "./routes/notice.route.js";
+import attendanceRoute from "./routes/attendance.route.js";
 
 dotenv.config();
+
 const app = express();
 
 // Ensure CORS headers are set before body parsing so they are returned
 // even when the body parser rejects large payloads (413).
 app.use((req, res, next) => {
   const allowedOrigin = process.env.CLIENT_URL || "http://localhost:5173";
+
   res.header("Access-Control-Allow-Origin", allowedOrigin);
   res.header(
     "Access-Control-Allow-Headers",
     "Origin, X-Requested-With, Content-Type, Accept, Authorization",
   );
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+
   if (req.method === "OPTIONS") {
     return res.sendStatus(204);
   }
+
   next();
 });
 
 // Increase JSON body size limit to accommodate Base64 image payloads.
 app.use(express.json({ limit: "10mb" }));
 
+// Routes
 app.use("/api/admin", authRoute);
 app.use("/api/admin/faculties", facultyRoute);
 app.use("/api/admin/students", studentRoute);
@@ -42,12 +49,16 @@ app.use("/api/admin/exams", examRoute);
 app.use("/api/admin/performance", performanceRoute);
 app.use("/api/teacher/marks", teacherMarksRoute);
 app.use("/api/notices", noticeRoute);
+app.use("/api/attendance", attendanceRoute);
+
 app.get("/", (req, res) => {
   res.send("Server is ready");
 });
 
+// Error handler
 app.use((err, req, res, next) => {
   const statusCode = err.statusCode || 500;
+
   res.status(statusCode).json({
     success: false,
     message: err.message || "Internal server error",
