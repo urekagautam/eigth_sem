@@ -77,3 +77,31 @@ export const fetchAdminGeneralAttendance = async (filters = {}) => {
   });
   return handleResponse(response);
 };
+
+export const fetchAdminExamAttendanceContext = async () => {
+  const response = await fetch(`${ATTENDANCE_API_URL}/admin/exam/context`, {
+    method: "GET",
+    headers: getHeaders(),
+  });
+  return handleResponse(response);
+};
+
+export const fetchAdminExamAttendanceSession = async (examId, examItemId) => {
+  const response = await fetch(
+    `${ATTENDANCE_API_URL}/admin/exam/${examId}/items/${examItemId}`,
+    { method: "GET", headers: getHeaders() },
+  );
+  return handleResponse(response);
+};
+
+export const saveAdminExamAttendance = async (examId, examItemId, records) => {
+  const response = await fetch(
+    `${ATTENDANCE_API_URL}/admin/exam/${examId}/items/${examItemId}`,
+    {
+      method: "PUT",
+      headers: getHeaders(),
+      body: JSON.stringify({ records }),
+    },
+  );
+  return handleResponse(response);
+};

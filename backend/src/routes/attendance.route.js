@@ -2,9 +2,12 @@ import express from "express";
 import {
   deleteTeacherAttendanceRecord,
   getAdminGeneralAttendance,
+  getAdminExamAttendanceContext,
+  getAdminExamAttendanceSession,
   getTeacherAttendanceByDate,
   getTeacherAttendanceClass,
   getTeacherAttendanceContext,
+  saveAdminExamAttendance,
   saveTeacherAttendance,
 } from "../controllers/attendance.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -23,5 +26,14 @@ router.delete(
 );
 
 router.get("/admin/general", getAdminGeneralAttendance);
+router.get("/admin/exam/context", getAdminExamAttendanceContext);
+router.get(
+  "/admin/exam/:examId/items/:examItemId",
+  getAdminExamAttendanceSession,
+);
+router.put(
+  "/admin/exam/:examId/items/:examItemId",
+  saveAdminExamAttendance,
+);
 
 export default router;
