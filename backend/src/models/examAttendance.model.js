@@ -1,16 +1,29 @@
 import mongoose, { Schema } from "mongoose";
 
-const attendanceSchema = new Schema(
+const examAttendanceSchema = new Schema(
   {
-    studentId: {
+    examId: {
       type: Schema.Types.ObjectId,
-      ref: "Student",
+      ref: "Exam",
+      required: true,
+      index: true,
+    },
+
+    examItemId: {
+      type: Schema.Types.ObjectId,
+      required: true,
+      index: true,
+    },
+
+    subjectId: {
+      type: Schema.Types.ObjectId,
+      ref: "Subject",
       required: true,
     },
 
-    classOfferingId: {
+    studentId: {
       type: Schema.Types.ObjectId,
-      ref: "ClassOffering",
+      ref: "Student",
       required: true,
     },
 
@@ -18,22 +31,19 @@ const attendanceSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Faculty",
       required: true,
-      index: true,
     },
 
     level: {
       type: Number,
       required: true,
-      index: true,
     },
 
     batch: {
       type: Number,
       required: true,
-      index: true,
     },
 
-    date: {
+    examDate: {
       type: Date,
       required: true,
     },
@@ -46,17 +56,21 @@ const attendanceSchema = new Schema(
 
     markedBy: {
       type: Schema.Types.ObjectId,
-      ref: "Teacher",
+      ref: "Admin",
+      required: true,
     },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
-attendanceSchema.index(
-  { studentId: 1, facultyId: 1, level: 1, batch: 1, date: 1 },
+examAttendanceSchema.index(
+  { examId: 1, examItemId: 1, studentId: 1 },
   { unique: true },
 );
 
-export const Attendance = mongoose.model("Attendance", attendanceSchema);
+export const ExamAttendance = mongoose.model(
+  "ExamAttendance",
+  examAttendanceSchema,
+);

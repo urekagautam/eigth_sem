@@ -9,6 +9,7 @@ import teacherRoute from "./routes/teacher.route.js";
 import examRoute from "./routes/exam.route.js";
 import performanceRoute from "./routes/performance.route.js";
 import teacherMarksRoute from "./routes/teacherMarks.route.js";
+import attendanceRoute from "./routes/attendance.route.js";
 
 dotenv.config();
 
@@ -37,6 +38,7 @@ app.use('/api/admin/teachers', teacherRoute);
 app.use('/api/admin/exams', examRoute);
 app.use('/api/admin/performance', performanceRoute);
 app.use('/api/teacher/marks', teacherMarksRoute);
+app.use('/api/attendance', attendanceRoute);
 app.get("/", (req, res) => {
   res.send("Server is ready");
 });
