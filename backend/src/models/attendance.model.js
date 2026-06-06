@@ -14,25 +14,6 @@ const attendanceSchema = new Schema(
       required: true,
     },
 
-    facultyId: {
-      type: Schema.Types.ObjectId,
-      ref: "Faculty",
-      required: true,
-      index: true,
-    },
-
-    level: {
-      type: Number,
-      required: true,
-      index: true,
-    },
-
-    batch: {
-      type: Number,
-      required: true,
-      index: true,
-    },
-
     date: {
       type: Date,
       required: true,
@@ -52,11 +33,6 @@ const attendanceSchema = new Schema(
   {
     timestamps: true,
   }
-);
-
-attendanceSchema.index(
-  { studentId: 1, facultyId: 1, level: 1, batch: 1, date: 1 },
-  { unique: true },
 );
 
 export const Attendance = mongoose.model("Attendance", attendanceSchema);

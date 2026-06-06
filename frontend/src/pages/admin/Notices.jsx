@@ -1,44 +1,14 @@
-/* eslint-disable react-hooks/purity */
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Calendar, X, Edit2, Trash2 } from "lucide-react";
 import Button from "../../components/Button";
 import ImageUploadField from "../../components/ImageUploadField";
-import { NOTICE_IMAGE_UPLOAD_PATH } from "../../constants/uploads";
 import { uploadNoticeImage } from "../../utils/noticeImageUpload";
-
-// Dummy data - simulating MongoDB documents
-const dummyNotices = [
-  {
-    _id: "1",
-    type: "text",
-    title: "Mid-Semester Exams Schedule",
-    description:
-      "The mid-semester exams will be conducted from June 15th to June 22nd, 2024. All students are requested to check their exam schedule on the student portal. Please report 15 minutes before the scheduled time.",
-    createdAt: "2024-05-16",
-  },
-  {
-    _id: "2",
-    type: "image",
-    caption: "Annual Sports Day - June 2024",
-    imagePath: NOTICE_IMAGE_UPLOAD_PATH,
-    createdAt: "2024-05-10",
-  },
-  {
-    _id: "3",
-    type: "text",
-    title: "Library Timings Updated",
-    description:
-      "Please note that the library will remain open until 8 PM on weekdays and 5 PM on weekends during the examination period. All borrowed books must be returned within the due date to avoid penalties.",
-    createdAt: "2024-05-08",
-  },
-  {
-    _id: "4",
-    type: "image",
-    caption: "New Computer Lab Inaugurated",
-    imagePath: NOTICE_IMAGE_UPLOAD_PATH,
-    createdAt: "2024-05-01",
-  },
-];
+import {
+  getNotices,
+  createNotice,
+  deleteNotice,
+  updateNotice,
+} from "../../services/apiNotice";
 
 export default function Notices() {
   const [showAddNotice, setShowAddNotice] = useState(false);
@@ -52,26 +22,80 @@ export default function Notices() {
   const [imagePreview, setImagePreview] = useState(null);
   const [imageUploadError, setImageUploadError] = useState(null);
   const [isPublishing, setIsPublishing] = useState(false);
-  const [notices, setNotices] = useState(dummyNotices);
+  const [notices, setNotices] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [displayCount, setDisplayCount] = useState(3); // Start with 3 notices
   const [selectedDateRange, setSelectedDateRange] = useState({
     from: "",
     to: "",
   });
-  const [textFormatting, setTextFormatting] = useState({
-    isBold: false,
-    isItalic: false,
-    isUnderline: false,
-  });
+
   const [expandedNotices, setExpandedNotices] = useState({}); // Track expanded descriptions
   const [deleteConfirmId, setDeleteConfirmId] = useState(null); // Track which notice is being deleted
-  const [setEditingId] = useState(null); // Track which notice is being edited
+  const [editingNotice, setEditingNotice] = useState(null); // Track notice being edited
+  const titleRef = useRef(null);
+  const descRef = useRef(null);
+  const prevShowAddRef = useRef(false);
+
+  const fetchNotices = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await getNotices();
+
+      const transformedNotices = data.map((notice) => ({
+        _id: notice._id,
+        type: notice.notice_image ? "image" : "text",
+        title: notice.title || "",
+        description: notice.description || "",
+        caption: notice.image_caption || "",
+        imagePath: notice.notice_image || "",
+        fontStyleTitle: notice.font_style_title || notice.font_style || {},
+        fontStyleDescription:
+          notice.font_style_description || notice.font_style || {},
+        createdAt: new Date(notice.createdAt).toISOString().split("T")[0],
+      }));
+
+      setNotices(transformedNotices);
+    } catch (err) {
+      console.error("Failed to fetch notices:", err);
+      setError("Failed to load notices");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const load = async () => {
+      await fetchNotices();
+    };
+    load();
+  }, []);
+
+  // initialize contentEditable fields only when the modal opens (transition false->true)
+  useEffect(() => {
+    if (showAddNotice && !prevShowAddRef.current) {
+      if (titleRef.current) titleRef.current.innerHTML = formData.title || "";
+      if (descRef.current)
+        descRef.current.innerHTML = formData.description || "";
+    }
+    prevShowAddRef.current = showAddNotice;
+  }, [showAddNotice, formData.title, formData.description]);
 
   const clearImageSelection = () => {
     if (imagePreview) URL.revokeObjectURL(imagePreview);
     setImageFile(null);
     setImagePreview(null);
     setImageUploadError(null);
+  };
+
+  const applyFormatting = (command) => {
+    try {
+      document.execCommand(command);
+    } catch (e) {
+      console.warn("Formatting command failed", e);
+    }
   };
 
   const handleImageFileSelect = (file, errorMessage) => {
@@ -88,16 +112,41 @@ export default function Notices() {
   };
 
   const handleAddNotice = async () => {
-    if (noticeType === "text" && (formData.title || formData.description)) {
-      const newNotice = {
-        _id: Date.now().toString(),
-        type: "text",
-        title: formData.title,
-        description: formData.description,
-        createdAt: new Date().toISOString().split("T")[0],
-      };
-      setNotices([newNotice, ...notices]);
-      resetForm();
+    if (noticeType === "text") {
+      const titleHtml = titleRef.current
+        ? titleRef.current.innerHTML
+        : formData.title;
+      const descHtml = descRef.current
+        ? descRef.current.innerHTML
+        : formData.description;
+      const titlePlain = titleRef.current
+        ? titleRef.current.innerText.trim()
+        : (formData.title || "").trim();
+      const descPlain = descRef.current
+        ? descRef.current.innerText.trim()
+        : (formData.description || "").trim();
+      if (!titlePlain && !descPlain) {
+        setImageUploadError(
+          "Please add a title or description for this notice.",
+        );
+        return;
+      }
+      setIsPublishing(true);
+      try {
+        const newNoticeData = {
+          title: titleHtml,
+          description: descHtml,
+          isActive: true,
+        };
+        await createNotice(newNoticeData);
+        await fetchNotices();
+        resetForm();
+      } catch (err) {
+        console.error("Error creating notice:", err);
+        setImageUploadError("Failed to create notice. Please try again.");
+      } finally {
+        setIsPublishing(false);
+      }
       return;
     }
 
@@ -105,17 +154,16 @@ export default function Notices() {
       setIsPublishing(true);
       try {
         const { imagePath } = await uploadNoticeImage(imageFile);
-        const newNotice = {
-          _id: Date.now().toString(),
-          type: "image",
-          caption: formData.caption,
-          imagePath,
-          originalFileName: imageFile.name,
-          createdAt: new Date().toISOString().split("T")[0],
+        const newNoticeData = {
+          notice_image: imagePath,
+          image_caption: formData.caption,
+          isActive: true,
         };
-        setNotices([newNotice, ...notices]);
+        await createNotice(newNoticeData);
+        await fetchNotices();
         resetForm();
-      } catch {
+      } catch (err) {
+        console.error("Error uploading notice:", err);
         setImageUploadError("Could not upload image. Please try again.");
       } finally {
         setIsPublishing(false);
@@ -129,12 +177,99 @@ export default function Notices() {
     clearImageSelection();
     setFormData({ title: "", description: "", caption: "" });
     setShowAddNotice(false);
-    setTextFormatting({ isBold: false, isItalic: false, isUnderline: false });
+    setEditingNotice(null);
   };
 
-  const handleDeleteNotice = (id) => {
-    setNotices(notices.filter((notice) => notice._id !== id));
-    setDeleteConfirmId(null);
+  const handleEditNotice = (notice) => {
+    setEditingNotice(notice);
+    setNoticeType(notice.type);
+    if (notice.type === "text") {
+      setFormData({
+        title: notice.title,
+        description: notice.description,
+        caption: "",
+      });
+    } else {
+      setFormData({
+        title: "",
+        description: "",
+        caption: notice.caption,
+      });
+      setImagePreview(notice.imagePath);
+    }
+    setShowAddNotice(true);
+  };
+
+  const handleUpdateNotice = async () => {
+    if (!editingNotice) return;
+
+    if (editingNotice.type === "text") {
+      const titleHtml = titleRef.current
+        ? titleRef.current.innerHTML
+        : formData.title;
+      const descHtml = descRef.current
+        ? descRef.current.innerHTML
+        : formData.description;
+      const titlePlain = titleRef.current
+        ? titleRef.current.innerText.trim()
+        : (formData.title || "").trim();
+      const descPlain = descRef.current
+        ? descRef.current.innerText.trim()
+        : (formData.description || "").trim();
+      if (!titlePlain && !descPlain) {
+        setImageUploadError(
+          "Please add a title or description for this notice.",
+        );
+        return;
+      }
+      setIsPublishing(true);
+      try {
+        const updateData = {
+          title: titleHtml,
+          description: descHtml,
+        };
+        await updateNotice(editingNotice._id, updateData);
+        await fetchNotices();
+        resetForm();
+      } catch (err) {
+        console.error("Error updating notice:", err);
+        setImageUploadError("Failed to update notice. Please try again.");
+      } finally {
+        setIsPublishing(false);
+      }
+    } else if (editingNotice.type === "image") {
+      setIsPublishing(true);
+      try {
+        let imagePath = editingNotice.imagePath;
+        if (imageFile) {
+          const { imagePath: newPath } = await uploadNoticeImage(imageFile);
+          imagePath = newPath;
+        }
+        const updateData = {
+          notice_image: imagePath,
+          image_caption: formData.caption,
+        };
+        await updateNotice(editingNotice._id, updateData);
+        await fetchNotices();
+        resetForm();
+      } catch (err) {
+        console.error("Error updating notice:", err);
+        setImageUploadError("Failed to update notice. Please try again.");
+      } finally {
+        setIsPublishing(false);
+      }
+    }
+  };
+
+  const handleDeleteNotice = async (id) => {
+    try {
+      await deleteNotice(id);
+      setNotices(notices.filter((notice) => notice._id !== id));
+      setDeleteConfirmId(null);
+    } catch (err) {
+      console.error("Error deleting notice:", err);
+      setError("Failed to delete notice");
+    }
   };
 
   const toggleExpandDescription = (id) => {
@@ -155,6 +290,11 @@ export default function Notices() {
       return text.substring(0, charLimit) + "...";
     }
     return text;
+  };
+
+  const getPlainText = (html) => {
+    if (!html) return "";
+    return html.replace(/<[^>]+>/g, "");
   };
 
   const canPublishImageNotice =
@@ -199,7 +339,7 @@ export default function Notices() {
             {/* Modal Header */}
             <div className="flex justify-between items-center border-b border-gray-200 p-6">
               <h2 className="text-2xl font-bold text-gray-900">
-                Add New Notice
+                {editingNotice ? "Edit Notice" : "Add New Notice"}
               </h2>
               <button
                 onClick={() => resetForm()}
@@ -248,47 +388,18 @@ export default function Notices() {
                   {/* Text Formatting Toolbar */}
                   <div className="flex gap-2 border-b border-gray-200 pb-4">
                     <button
-                      onClick={() =>
-                        setTextFormatting({
-                          ...textFormatting,
-                          isBold: !textFormatting.isBold,
-                        })
-                      }
-                      className={`px-4 py-2 rounded font-bold transition-colors ${
-                        textFormatting.isBold
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => applyFormatting("bold")}
+                      className={`px-4 py-2 rounded font-bold transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200`}
+                      title="Bold selected text"
                     >
                       B
                     </button>
                     <button
-                      onClick={() =>
-                        setTextFormatting({
-                          ...textFormatting,
-                          isItalic: !textFormatting.isItalic,
-                        })
-                      }
-                      className={`px-4 py-2 rounded italic transition-colors ${
-                        textFormatting.isItalic
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                    >
-                      I
-                    </button>
-                    <button
-                      onClick={() =>
-                        setTextFormatting({
-                          ...textFormatting,
-                          isUnderline: !textFormatting.isUnderline,
-                        })
-                      }
-                      className={`px-4 py-2 rounded underline transition-colors ${
-                        textFormatting.isUnderline
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => applyFormatting("underline")}
+                      className={`px-4 py-2 rounded underline transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200`}
+                      title="Underline selected text"
                     >
                       U
                     </button>
@@ -299,13 +410,16 @@ export default function Notices() {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Notice Title
                     </label>
-                    <input
-                      type="text"
-                      value={formData.title}
-                      onChange={(e) =>
-                        setFormData({ ...formData, title: e.target.value })
+                    <div
+                      ref={titleRef}
+                      contentEditable
+                      suppressContentEditableWarning
+                      onInput={(e) =>
+                        setFormData({
+                          ...formData,
+                          title: e.currentTarget.innerHTML,
+                        })
                       }
-                      placeholder="Enter notice title..."
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
                     />
                   </div>
@@ -315,18 +429,19 @@ export default function Notices() {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Description
                     </label>
-                    <textarea
-                      value={formData.description}
-                      onChange={(e) =>
+                    <div
+                      ref={descRef}
+                      contentEditable
+                      suppressContentEditableWarning
+                      onInput={(e) =>
                         setFormData({
                           ...formData,
-                          description: e.target.value,
+                          description: e.currentTarget.innerHTML,
                         })
                       }
                       placeholder="Enter notice description... (Text will be justified)"
-                      rows={5}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 resize-none"
-                      style={{ textAlign: "justify" }}
+                      style={{ textAlign: "justify", minHeight: 120 }}
                     />
                   </div>
                 </div>
@@ -368,11 +483,17 @@ export default function Notices() {
                 Cancel
               </Button>
               <Button
-                onClick={handleAddNotice}
+                onClick={editingNotice ? handleUpdateNotice : handleAddNotice}
                 variant="primary"
                 disabled={!canPublishTextNotice && !canPublishImageNotice}
               >
-                {isPublishing ? "Publishing..." : "Publish Notice"}
+                {isPublishing
+                  ? editingNotice
+                    ? "Updating..."
+                    : "Publishing..."
+                  : editingNotice
+                    ? "Update Notice"
+                    : "Publish Notice"}
               </Button>
             </div>
           </div>
@@ -456,83 +577,119 @@ export default function Notices() {
 
         {/* Notices List */}
         <div className="space-y-6">
-          {displayedNotices.length > 0 ? (
-            displayedNotices.map((notice) => (
-              <div
-                key={notice._id}
-                className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow"
-              >
-                {/* Notice Header with Date and Action Buttons */}
-                <div className="flex justify-between items-start gap-4 mb-4 flex-wrap">
-                  <span className="inline-block bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium">
-                    {new Date(notice.createdAt).toLocaleDateString("en-US", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })}
-                  </span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setEditingId(notice._id)}
-                      className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="Edit notice"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirmId(notice._id)}
-                      className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Delete notice"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Notice Content */}
-                {notice.type === "text" ? (
-                  <div className="space-y-3">
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      {notice.title}
-                    </h3>
-                    <div>
-                      <p
-                        className="text-gray-700 whitespace-pre-wrap"
-                        style={{ textAlign: "justify" }}
+          {isLoading ? (
+            <div className="text-center py-12 bg-white border border-gray-200 rounded-lg">
+              <p className="text-gray-600 text-lg">Loading notices...</p>
+            </div>
+          ) : error ? (
+            <div className="text-center py-12 bg-white border border-red-200 rounded-lg">
+              <p className="text-red-600 text-lg">{error}</p>
+            </div>
+          ) : displayedNotices.length > 0 ? (
+            displayedNotices.map((notice) => {
+              // Parse createdAt date properly
+              let dateStr = notice.createdAt;
+              if (typeof notice.createdAt === "string") {
+                // If it's already a string like "2024-05-16", parse it
+                dateStr = notice.createdAt.includes("T")
+                  ? notice.createdAt.split("T")[0]
+                  : notice.createdAt;
+              }
+              const noticeDate = new Date(dateStr + "T00:00:00");
+              return (
+                <div
+                  key={notice._id}
+                  className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow"
+                >
+                  {/* Notice Header with Date and Action Buttons */}
+                  <div className="flex justify-between items-start gap-4 mb-4 flex-wrap">
+                    <span className="inline-block bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium">
+                      {noticeDate.toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })}
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleEditNotice(notice)}
+                        className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Edit notice"
                       >
-                        {expandedNotices[notice._id]
-                          ? notice.description
-                          : truncateText(notice.description, 2)}
-                      </p>
-                      {notice.description.split("\n").length > 2 ||
-                      notice.description.length > 160 ? (
-                        <button
-                          onClick={() => toggleExpandDescription(notice._id)}
-                          className="text-blue-600 hover:text-blue-700 font-medium text-sm mt-2"
-                        >
-                          {expandedNotices[notice._id]
-                            ? "Show Less"
-                            : "Show More"}
-                        </button>
-                      ) : null}
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirmId(notice._id)}
+                        className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete notice"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    {notice.caption && (
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        {notice.caption}
-                      </h3>
-                    )}
-                    <img
-                      src={notice.imagePath}
-                      alt={notice.caption || "Notice image"}
-                      className="w-full h-auto rounded-lg object-cover"
-                    />
-                  </div>
-                )}
-              </div>
-            ))
+
+                  {/* Notice Content */}
+                  {notice.type === "text" ? (
+                    <div className="space-y-3">
+                      <h3
+                        className="text-lg font-semibold text-gray-900"
+                        dangerouslySetInnerHTML={{ __html: notice.title || "" }}
+                      />
+                      <div>
+                        {(() => {
+                          const plain = getPlainText(notice.description || "");
+                          return expandedNotices[notice._id] ? (
+                            <div
+                              className="text-gray-700"
+                              style={{ textAlign: "justify" }}
+                              dangerouslySetInnerHTML={{
+                                __html: notice.description || "",
+                              }}
+                            />
+                          ) : (
+                            <p
+                              className="text-gray-700 whitespace-pre-wrap"
+                              style={{ textAlign: "justify" }}
+                            >
+                              {truncateText(plain, 2)}
+                            </p>
+                          );
+                        })()}
+                        {(() => {
+                          const plain = getPlainText(notice.description || "");
+                          return plain.split("\n").length > 2 ||
+                            plain.length > 160 ? (
+                            <button
+                              onClick={() =>
+                                toggleExpandDescription(notice._id)
+                              }
+                              className="text-blue-600 hover:text-blue-700 font-medium text-sm mt-2"
+                            >
+                              {expandedNotices[notice._id]
+                                ? "Show Less"
+                                : "Show More"}
+                            </button>
+                          ) : null;
+                        })()}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {notice.caption && (
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          {notice.caption}
+                        </h3>
+                      )}
+                      <img
+                        src={notice.imagePath}
+                        alt={notice.caption || "Notice image"}
+                        className="w-full h-auto rounded-lg object-cover"
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })
           ) : (
             <div className="text-center py-12 bg-white border border-gray-200 rounded-lg">
               <p className="text-gray-600 text-lg">

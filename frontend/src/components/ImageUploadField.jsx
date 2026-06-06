@@ -1,8 +1,11 @@
-import { useRef } from "react"
-import { Upload, X, ImageIcon } from "lucide-react"
-import { NOTICE_IMAGE_UPLOAD_PATH } from "../constants/uploads"
+import { useRef } from "react";
+import { Upload, X, ImageIcon } from "lucide-react";
+import {
+  NOTICE_IMAGE_MAX_FILE_SIZE,
+  NOTICE_IMAGE_MAX_FILE_SIZE_TEXT,
+} from "../constants/uploads";
 
-const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 export default function ImageUploadField({
   file,
@@ -12,31 +15,37 @@ export default function ImageUploadField({
   error,
   label = "Notice image",
 }) {
-  const inputRef = useRef(null)
+  const inputRef = useRef(null);
 
-  const openPicker = () => inputRef.current?.click()
+  const openPicker = () => inputRef.current?.click();
+
+  const handleFile = (selected) => {
+    if (!selected) return;
+    if (!ACCEPTED_TYPES.includes(selected.type)) {
+      onFileSelect(null, "Please upload a JPG, PNG, WebP, or GIF image.");
+      return;
+    }
+    if (selected.size > NOTICE_IMAGE_MAX_FILE_SIZE) {
+      onFileSelect(
+        null,
+        `Please upload an image smaller than ${NOTICE_IMAGE_MAX_FILE_SIZE_TEXT}.`,
+      );
+      return;
+    }
+    onFileSelect(selected, null);
+  };
 
   const handleChange = (e) => {
-    const selected = e.target.files?.[0]
-    if (!selected) return
-    if (!ACCEPTED_TYPES.includes(selected.type)) {
-      onFileSelect(null, "Please upload a JPG, PNG, WebP, or GIF image.")
-      return
-    }
-    onFileSelect(selected, null)
-    e.target.value = ""
-  }
+    const selected = e.target.files?.[0];
+    handleFile(selected);
+    e.target.value = "";
+  };
 
   const handleDrop = (e) => {
-    e.preventDefault()
-    const dropped = e.dataTransfer.files?.[0]
-    if (!dropped) return
-    if (!ACCEPTED_TYPES.includes(dropped.type)) {
-      onFileSelect(null, "Please upload a JPG, PNG, WebP, or GIF image.")
-      return
-    }
-    onFileSelect(dropped, null)
-  }
+    e.preventDefault();
+    const dropped = e.dataTransfer.files?.[0];
+    handleFile(dropped);
+  };
 
   return (
     <div className="space-y-2">
@@ -69,7 +78,9 @@ export default function ImageUploadField({
             <p className="text-sm font-semibold text-gray-800">
               Click to upload or drag and drop
             </p>
-            <p className="mt-1 text-xs text-gray-500">JPG, PNG, WebP or GIF</p>
+            <p className="mt-1 text-xs text-gray-500">
+              JPG, PNG, WebP or GIF • Up to {NOTICE_IMAGE_MAX_FILE_SIZE_TEXT}
+            </p>
           </div>
         </div>
       ) : (
@@ -77,7 +88,11 @@ export default function ImageUploadField({
           <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-gray-100">
             <img
               src={previewUrl}
-              alt={file?.name ? `Preview: ${file.name}` : `Selected ${label.toLowerCase()}`}
+              alt={
+                file?.name
+                  ? `Preview: ${file.name}`
+                  : `Selected ${label.toLowerCase()}`
+              }
               className="max-h-72 w-full object-contain"
             />
             <button
@@ -113,10 +128,9 @@ export default function ImageUploadField({
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <p className="text-xs text-gray-500">
-        {/* Preview shows selected file. After publish, notices use the server upload path  (demo:{" "}  <code className="rounded bg-gray-100 px-1">{NOTICE_IMAGE_UPLOAD_PATH}</code>). */}
-       
-      
+        Preview shows the selected file. After publishing, the notice will use
+        the chosen image.
       </p>
     </div>
-  )
+  );
 }

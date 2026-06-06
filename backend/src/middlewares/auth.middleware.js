@@ -17,27 +17,10 @@ export const verifyJWT = async (req, res, next) => {
     const secret = process.env.ACCESS_TOKEN_SECRET || "examify_secret";
     const decoded = jwt.verify(token, secret);
 
-    const decodedRole = String(decoded.role || "").toLowerCase();
-
-    let user = null;
-    let role = decodedRole;
-
-    if (decodedRole === "admin") {
-      user = await Admin.findById(decoded.id);
-      role = "admin";
-    } else if (decodedRole === "teacher") {
-      user = await Teacher.findById(decoded.id);
-      role = "teacher";
-    } else if (decodedRole === "student") {
-      user = await Student.findById(decoded.id);
-      role = "student";
-    } else {
-      user =
-        (await Admin.findById(decoded.id)) ||
-        (await Teacher.findById(decoded.id)) ||
-        (await Student.findById(decoded.id));
-      role = user?.role || (user instanceof Admin ? "admin" : "");
-    }
+    let user =
+      (await Student.findById(decoded.id)) ||
+      (await Teacher.findById(decoded.id)) ||
+      (await Admin.findById(decoded.id));
 
     if (!user) {
       throw new ApiError(401, "User not found");
@@ -45,7 +28,7 @@ export const verifyJWT = async (req, res, next) => {
 
     req.user = {
       _id: user._id,
-      role,
+      role: decoded.role || user.role,
     };
 
     next();
