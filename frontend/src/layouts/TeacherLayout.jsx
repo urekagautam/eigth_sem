@@ -8,12 +8,14 @@ import {
   ClipboardList,
   TrendingUp,
   BookOpen,
+  FileQuestion,
 } from "lucide-react";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/teacher/dashboard" },
   { icon: ClipboardList, label: "Attendance", path: "/teacher/attendance" },
   { icon: TrendingUp, label: "Marks", path: "/teacher/marks" },
+  { icon: FileQuestion, label: "Quizzes", path: "/teacher/quizzes" },
   { icon: BookOpen, label: "Resources", path: "/teacher/resources" },
 ];
 
