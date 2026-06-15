@@ -65,12 +65,10 @@ export default function ExamScheduleTab() {
   const [faculties, setFaculties] = useState([]);
   const [selectedFacultyId, setSelectedFacultyId] = useState("");
   const [selectedLevel, setSelectedLevel] = useState("");
-  const [selectedBatch, setSelectedBatch] = useState("");
-  const [batchOptions, setBatchOptions] = useState([]);
+  const [classStudents, setClassStudents] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [loadingBatches, setLoadingBatches] = useState(false);
   const [formError, setFormError] = useState("");
   const [showCreateExam, setShowCreateExam] = useState(false);
   const [editingExam, setEditingExam] = useState(null);
@@ -84,6 +82,21 @@ export default function ExamScheduleTab() {
   const levelLabel = selectedLevel
     ? getLevelLabel(selectedFaculty, selectedLevel)
     : "semester/year";
+  const batchOptions = useMemo(() => {
+    const batches = new Set();
+    classStudents.forEach((student) => {
+      if (
+        student.admission?.facultyId === selectedFacultyId &&
+        String(student.enrollment?.currentLevel) === String(selectedLevel) &&
+        student.enrollment?.status === "active" &&
+        student.admission?.batch
+      ) {
+        batches.add(String(student.admission.batch));
+      }
+    });
+    return Array.from(batches).sort((a, b) => Number(b) - Number(a));
+  }, [classStudents, selectedFacultyId, selectedLevel]);
+  const selectedExamBatch = batchOptions[0] || "";
 
   const currentSchedule = schedules[0];
 
@@ -119,13 +132,11 @@ export default function ExamScheduleTab() {
 
   useEffect(() => {
     const loadBatchOptions = async () => {
-      setBatchOptions([]);
-      setSelectedBatch("");
+      setClassStudents([]);
       setSubjects([]);
       setSchedules([]);
       if (!selectedFacultyId || !selectedLevel) return;
 
-      setLoadingBatches(true);
       try {
         const response = await fetchStudents({
           facultyId: selectedFacultyId,
@@ -133,22 +144,11 @@ export default function ExamScheduleTab() {
         });
 
         if (response?.success && Array.isArray(response.data)) {
-          const batches = Array.from(
-            new Set(
-              response.data
-                .map((student) => student.admission?.batch)
-                .filter(Boolean)
-                .map(String),
-            ),
-          ).sort((a, b) => Number(b) - Number(a));
-
-          setBatchOptions(batches);
-          setSelectedBatch(batches[0] || "");
+          setClassStudents(response.data);
         }
       } catch (error) {
         console.error("Failed to fetch exam batches:", error);
-      } finally {
-        setLoadingBatches(false);
+        setClassStudents([]);
       }
     };
 
@@ -159,7 +159,7 @@ export default function ExamScheduleTab() {
     const loadSubjectsAndSchedules = async () => {
       setSubjects([]);
       setSchedules([]);
-      if (!selectedFacultyId || !selectedLevel || !selectedBatch) return;
+      if (!selectedFacultyId || !selectedLevel || !selectedExamBatch) return;
 
       setLoading(true);
       try {
@@ -167,12 +167,12 @@ export default function ExamScheduleTab() {
           fetchSubjects({
             facultyId: selectedFacultyId,
             level: selectedLevel,
-            batch: selectedBatch,
+            batch: selectedExamBatch,
           }),
           fetchExamSchedules({
             facultyId: selectedFacultyId,
             level: selectedLevel,
-            batch: selectedBatch,
+            batch: selectedExamBatch,
           }),
         ]);
 
@@ -190,7 +190,7 @@ export default function ExamScheduleTab() {
     };
 
     loadSubjectsAndSchedules();
-  }, [selectedFacultyId, selectedLevel, selectedBatch]);
+  }, [selectedFacultyId, selectedLevel, selectedExamBatch]);
 
   const resetForm = () => {
     setExamForm({
@@ -240,7 +240,7 @@ export default function ExamScheduleTab() {
     const response = await fetchExamSchedules({
       facultyId: selectedFacultyId,
       level: selectedLevel,
-      batch: selectedBatch,
+      batch: selectedExamBatch,
     });
     if (response?.success && Array.isArray(response.data)) {
       setSchedules(response.data);
@@ -267,7 +267,7 @@ export default function ExamScheduleTab() {
         title: examForm.title.trim(),
         facultyId: selectedFacultyId,
         level: selectedLevel,
-        batch: selectedBatch,
+        batch: selectedExamBatch,
         fullMarks: Number(examForm.fullMarks) || 100,
         items: cleanItems.map((item) => ({
           subjectId: item.subjectId,
@@ -311,7 +311,7 @@ export default function ExamScheduleTab() {
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 gap-6">
           <div>
             <label className={labelClass}>Faculty</label>
             <select
@@ -348,31 +348,13 @@ export default function ExamScheduleTab() {
               ))}
             </select>
           </div>
-          <div>
-            <label className={labelClass}>Batch</label>
-            <select
-              value={selectedBatch}
-              onChange={(event) => setSelectedBatch(event.target.value)}
-              className={inputClass}
-              disabled={!selectedFacultyId || !selectedLevel || loadingBatches}
-            >
-              <option value="">
-                {loadingBatches ? "Loading batches..." : "Select batch"}
-              </option>
-              {batchOptions.map((batch) => (
-                <option key={batch} value={batch}>
-                  Batch {batch}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
 
         <div className="mt-6 flex flex-wrap justify-between gap-4 items-center">
           <div>
             <h2 className="text-xl font-bold text-gray-900">
               {selectedFaculty?.code || "Faculty"} - {levelLabel}
-              {selectedBatch ? ` - Batch ${selectedBatch}` : ""}
+              {selectedExamBatch ? ` - Batch ${selectedExamBatch}` : ""}
             </h2>
             <p className="text-sm text-gray-500">
               {currentSchedule?.exams?.length || 0} exam(s) created
@@ -380,7 +362,7 @@ export default function ExamScheduleTab() {
           </div>
           <Button
             onClick={openCreateExam}
-            disabled={!selectedFacultyId || !selectedLevel || !selectedBatch}
+            disabled={!selectedFacultyId || !selectedLevel || !selectedExamBatch}
           >
             Create Exam
           </Button>
@@ -397,16 +379,16 @@ export default function ExamScheduleTab() {
                 Select a faculty and semester/year to create a routine.
               </p>
             </div>
-          ) : !selectedBatch ? (
+          ) : !selectedExamBatch ? (
             <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
               <p className="text-gray-500">
-                Select an active batch to create an exam routine.
+                No active batch found for this class.
               </p>
             </div>
           ) : !currentSchedule || currentSchedule.exams.length === 0 ? (
             <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
               <p className="text-gray-500">
-                No exams created yet for Batch {selectedBatch} in this class.
+                No exams created yet for Batch {selectedExamBatch} in this class.
               </p>
             </div>
           ) : (
@@ -513,7 +495,7 @@ export default function ExamScheduleTab() {
             <div className="flex justify-between items-center border-b border-gray-200 p-6">
               <h2 className="text-2xl font-bold text-gray-900">
                 {editingExam ? "Edit" : "Create"} Exam for{" "}
-                {selectedFaculty?.code} - {levelLabel} - Batch {selectedBatch}
+                {selectedFaculty?.code} - {levelLabel} - Batch {selectedExamBatch}
               </h2>
               <button
                 type="button"
