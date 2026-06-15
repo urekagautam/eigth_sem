@@ -6,6 +6,7 @@ import Login from "./auth/Login";
 import Dashboard from "./admin/Dashboard";
 import Academics from "./admin/Academics";
 import Exams from "./admin/Exams";
+import AdminQuizzes from "./admin/Quizzes";
 import Notices from "./admin/Notices";
 import Attendance from "./admin/Attendance";
 import StudentPerformance from "./admin/StudentPerformance";
@@ -15,12 +16,14 @@ import NotFoundPage from "./NotFoundPage";
 import TeacherDashboard from "./teacher/Dashboard";
 import TeacherAttendance from "./teacher/Attendance";
 import TeacherMarks from "./teacher/Marks";
+import TeacherQuizzes from "./teacher/Quizzes";
 import TeacherResources from "./teacher/Resources";
 import StudentDashboard from "./student/Dashboard";
 import StudentNotices from "./student/Notices";
 import StudentAcademics from "./student/Academics";
 import StudentAttendance from "./student/Attendance";
 import StudentResources from "./student/Resources";
+import StudentQuizzes from "./student/Quizzes";
 
 function App() {
   return (
@@ -32,6 +35,7 @@ function App() {
           <Route path="academics" element={<Academics />} />
           <Route path="academics/faculties" element={<FacultyManagement />} />
           <Route path="exams" element={<Exams />} />
+          <Route path="quizzes" element={<AdminQuizzes />} />
           <Route path="notices" element={<Notices />} />
           <Route path="attendance" element={<Attendance />} />
           <Route path="student-performance" element={<StudentPerformance />} />
@@ -46,6 +50,7 @@ function App() {
           <Route path="dashboard" element={<TeacherDashboard />} />
           <Route path="attendance" element={<TeacherAttendance />} />
           <Route path="marks" element={<TeacherMarks />} />
+          <Route path="quizzes" element={<TeacherQuizzes />} />
           <Route path="resources" element={<TeacherResources />} />
         </Route>
         <Route path="/student" element={<StudentLayout />}>
@@ -54,6 +59,7 @@ function App() {
           <Route path="notices" element={<StudentNotices />} />
           <Route path="academics" element={<StudentAcademics />} />
           <Route path="attendance" element={<StudentAttendance />} />
+          <Route path="quizzes" element={<StudentQuizzes />} />
           <Route path="resources" element={<StudentResources />} />
         </Route>
         <Route path="/login" element={<Login />} />

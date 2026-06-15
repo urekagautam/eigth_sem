@@ -12,6 +12,7 @@ import performanceRoute from "./routes/performance.route.js";
 import teacherMarksRoute from "./routes/teacherMarks.route.js";
 import noticeRoute from "./routes/notice.route.js";
 import attendanceRoute from "./routes/attendance.route.js";
+import quizRoute from "./routes/quiz.route.js";
 
 dotenv.config();
 
@@ -50,6 +51,7 @@ app.use("/api/admin/performance", performanceRoute);
 app.use("/api/teacher/marks", teacherMarksRoute);
 app.use("/api/notices", noticeRoute);
 app.use("/api/attendance", attendanceRoute);
+app.use("/api/quizzes", quizRoute);
 
 app.get("/", (req, res) => {
   res.send("Server is ready");
