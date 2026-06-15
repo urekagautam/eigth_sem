@@ -11,12 +11,14 @@ import {
   UserCheck,
   TrendingUp,
   KeyRound,
+  FileQuestion,
 } from "lucide-react"
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/admin/dashboard" },
   { icon: GraduationCap, label: "Academics", path: "/admin/academics" },
   { icon: ClipboardList, label: "Exams", path: "/admin/exams" },
+  { icon: FileQuestion, label: "Quizzes", path: "/admin/quizzes" },
   { icon: Megaphone, label: "Notices", path: "/admin/notices" },
   { icon: UserCheck, label: "Attendance", path: "/admin/attendance" },
   { icon: TrendingUp, label: "Student Performance", path: "/admin/student-performance" },

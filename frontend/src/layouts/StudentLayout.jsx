@@ -8,12 +8,14 @@ import {
   Megaphone,
   BookOpen,
   ClipboardList,
+  FileQuestion,
 } from "lucide-react";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/student/dashboard" },
   { icon: Megaphone, label: "Notices", path: "/student/notices" },
   { icon: BookOpen, label: "Academics", path: "/student/academics" },
+  { icon: FileQuestion, label: "Online Exam", path: "/student/quizzes" },
   { icon: ClipboardList, label: "Attendance", path: "/student/attendance" },
   { icon: BookOpen, label: "Resources", path: "/student/resources" },
 ];
