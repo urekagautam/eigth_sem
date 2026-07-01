@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { BookOpen } from "lucide-react"
 import Button from "../../components/Button"
 import { loginUser } from "../../services/apiAuth"
+import { saveSession } from "../../utils/authSession"
 
 const roles = [
   { value: "admin", label: "Admin" },
@@ -27,8 +28,10 @@ export default function Login() {
     try {
       const response = await loginUser({ role, identifier, password })
       const userRole = response.data.user.role
-      localStorage.setItem("examifyToken", response.data.token)
-      localStorage.setItem("examifyUser", JSON.stringify(response.data.user))
+      saveSession({
+        token: response.data.token,
+        user: response.data.user,
+      })
       navigate(`/${userRole}/dashboard`)
     } catch (err) {
       setError(err.message || "Login failed. Please check your credentials.")

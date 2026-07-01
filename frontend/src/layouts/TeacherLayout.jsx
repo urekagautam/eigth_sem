@@ -10,6 +10,7 @@ import {
   BookOpen,
   FileQuestion,
 } from "lucide-react";
+import { clearSession, getStoredUser } from "../utils/authSession";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/teacher/dashboard" },
@@ -23,17 +24,10 @@ export default function TeacherLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
-  const currentUser = (() => {
-    try {
-      return JSON.parse(localStorage.getItem("examifyUser") || "{}");
-    } catch {
-      return {};
-    }
-  })();
+  const currentUser = getStoredUser();
 
   const handleLogout = () => {
-    localStorage.removeItem("examifyToken");
-    localStorage.removeItem("examifyUser");
+    clearSession();
     navigate("/login");
   };
 

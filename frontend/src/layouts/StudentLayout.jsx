@@ -10,6 +10,7 @@ import {
   ClipboardList,
   FileQuestion,
 } from "lucide-react";
+import { clearSession } from "../utils/authSession";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/student/dashboard" },
@@ -26,8 +27,7 @@ export default function StudentLayout() {
   const location = useLocation();
 
   const handleLogout = () => {
-    localStorage.removeItem("examifyToken");
-    localStorage.removeItem("examifyUser");
+    clearSession();
     navigate("/login");
   };
 

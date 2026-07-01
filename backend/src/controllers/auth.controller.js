@@ -50,7 +50,7 @@ export const loginAdmin = async (req, res, next) => {
       { id: user._id, role: loginRole },
       ACCESS_TOKEN_SECRET,
       {
-        expiresIn: "8h",
+        expiresIn: "3d",
       }
     );
 

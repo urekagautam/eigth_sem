@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { getStoredSession } from "../utils/authSession";
 import AdminLayout from "../layouts/AdminLayout";
 import TeacherLayout from "../layouts/TeacherLayout";
 import StudentLayout from "../layouts/StudentLayout";
@@ -25,11 +26,22 @@ import StudentAttendance from "./student/Attendance";
 import StudentResources from "./student/Resources";
 import StudentQuizzes from "./student/Quizzes";
 
+function RequireAuth({ role, children }) {
+  return getStoredSession(role) ? children : <Navigate to="/login" replace />;
+}
+
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/admin" element={<AdminLayout />}>
+        <Route
+          path="/admin"
+          element={
+            <RequireAuth role="admin">
+              <AdminLayout />
+            </RequireAuth>
+          }
+        >
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="academics" element={<Academics />} />
@@ -45,7 +57,14 @@ function App() {
           />
           <Route path="change-password" element={<ChangePassword />} />
         </Route>
-        <Route path="/teacher" element={<TeacherLayout />}>
+        <Route
+          path="/teacher"
+          element={
+            <RequireAuth role="teacher">
+              <TeacherLayout />
+            </RequireAuth>
+          }
+        >
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<TeacherDashboard />} />
           <Route path="attendance" element={<TeacherAttendance />} />
@@ -53,7 +72,14 @@ function App() {
           <Route path="quizzes" element={<TeacherQuizzes />} />
           <Route path="resources" element={<TeacherResources />} />
         </Route>
-        <Route path="/student" element={<StudentLayout />}>
+        <Route
+          path="/student"
+          element={
+            <RequireAuth role="student">
+              <StudentLayout />
+            </RequireAuth>
+          }
+        >
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<StudentDashboard />} />
           <Route path="notices" element={<StudentNotices />} />

@@ -13,6 +13,7 @@ import {
   KeyRound,
   FileQuestion,
 } from "lucide-react"
+import { clearSession } from "../utils/authSession"
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/admin/dashboard" },
@@ -31,7 +32,8 @@ export default function AdminLayout() {
   const location = useLocation()
 
   const handleLogout = () => {
-    navigate("/")
+    clearSession()
+    navigate("/login")
   }
 
   const navButtonClass = (isActive) =>
