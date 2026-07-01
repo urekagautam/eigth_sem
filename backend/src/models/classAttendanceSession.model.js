@@ -1,13 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 
-const attendanceSchema = new Schema(
+const classAttendanceSessionSchema = new Schema(
   {
-    studentId: {
-      type: Schema.Types.ObjectId,
-      ref: "Student",
-      required: true,
-    },
-
     classOfferingId: {
       type: Schema.Types.ObjectId,
       ref: "ClassOffering",
@@ -39,10 +33,16 @@ const attendanceSchema = new Schema(
       index: true,
     },
 
-    status: {
-      type: String,
-      enum: ["present", "absent"],
+    totalStudents: {
+      type: Number,
       required: true,
+      default: 0,
+    },
+
+    presentCount: {
+      type: Number,
+      required: true,
+      default: 0,
     },
 
     markedBy: {
@@ -52,9 +52,15 @@ const attendanceSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
-attendanceSchema.index({ studentId: 1, facultyId: 1, level: 1, batch: 1, date: 1 });
+classAttendanceSessionSchema.index(
+  { facultyId: 1, level: 1, batch: 1, date: 1 },
+  { unique: true },
+);
 
-export const Attendance = mongoose.model("Attendance", attendanceSchema);
+export const ClassAttendanceSession = mongoose.model(
+  "ClassAttendanceSession",
+  classAttendanceSessionSchema,
+);

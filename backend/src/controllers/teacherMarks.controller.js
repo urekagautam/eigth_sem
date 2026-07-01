@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { ClassOffering } from "../models/classOffering.model.js";
 import { Exam } from "../models/exam.model.js";
+import { ExamAttendance } from "../models/examAttendance.model.js";
 import { Marks } from "../models/marks.model.js";
 import { Student } from "../models/student.model.js";
 import { ApiError } from "../utils/ApiError.js";
@@ -95,6 +96,7 @@ const normalizeExam = (exam, subjectId) => {
     published: exam.published,
     date: item?.examDate ? item.examDate.toISOString().slice(0, 10) : "",
     time: item?.examTime || "",
+    examItemId: item?._id?.toString() || "",
     createdAt: exam.createdAt,
   };
 };
@@ -199,6 +201,15 @@ export const getTeacherExamMarks = async (req, res, next) => {
       classOfferingId: offering._id,
       examId,
     });
+    const examItem = exam.items.find(
+      (item) => item.subjectId?.toString() === offering.subjectId._id.toString(),
+    );
+    const attendance = examItem
+      ? await ExamAttendance.find({
+          examId: exam._id,
+          examItemId: examItem._id,
+        })
+      : [];
 
     res.status(200).json(
       new ApiResponse(
@@ -209,6 +220,10 @@ export const getTeacherExamMarks = async (req, res, next) => {
             studentId: mark.studentId.toString(),
             obtainedMarks: mark.obtained_marks,
             grade: mark.grade || "",
+          })),
+          attendance: attendance.map((record) => ({
+            studentId: record.studentId.toString(),
+            status: record.status,
           })),
         },
         "Marks retrieved successfully",
@@ -241,6 +256,20 @@ export const saveTeacherExamMarks = async (req, res, next) => {
     if (exam.published) {
       throw new ApiError(400, "Published exam marks cannot be changed");
     }
+    const examItem = exam.items.find(
+      (item) => item.subjectId?.toString() === offering.subjectId._id.toString(),
+    );
+    const absentStudentIds = new Set(
+      examItem
+        ? (
+            await ExamAttendance.find({
+              examId: exam._id,
+              examItemId: examItem._id,
+              status: "absent",
+            }).select("studentId")
+          ).map((record) => record.studentId.toString())
+        : [],
+    );
 
     const activeStudents = await Student.find({
       facultyId: offering.facultyId._id,
@@ -255,6 +284,14 @@ export const saveTeacherExamMarks = async (req, res, next) => {
 
     for (const item of marks) {
       if (!validStudentIds.has(String(item.studentId))) continue;
+      if (absentStudentIds.has(String(item.studentId))) {
+        await Marks.deleteOne({
+          studentId: item.studentId,
+          examId,
+          classOfferingId: offering._id,
+        });
+        continue;
+      }
       if (item.obtainedMarks === "" || item.obtainedMarks == null) {
         await Marks.deleteOne({
           studentId: item.studentId,
