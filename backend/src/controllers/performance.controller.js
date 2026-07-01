@@ -166,16 +166,12 @@ const calculateStudentExamResult = ({ student, exam, subjects, markMap }) => {
   );
   const total = enteredSubjects.reduce((sum, item) => sum + item.obtainedMarks, 0);
   const fullMarks = subjectResults.reduce((sum, item) => sum + item.fullMarks, 0);
-  const enteredFullMarks = enteredSubjects.reduce(
-    (sum, item) => sum + item.fullMarks,
-    0,
-  );
-  const percentage = enteredFullMarks ? (total / enteredFullMarks) * 100 : null;
-  const gpa = enteredSubjects.length
+  const complete = subjectResults.length > 0 && enteredSubjects.length === subjectResults.length;
+  const percentage = complete && fullMarks ? (total / fullMarks) * 100 : null;
+  const gpa = complete
     ? enteredSubjects.reduce((sum, item) => sum + item.gradePoint, 0) /
       enteredSubjects.length
     : null;
-  const complete = subjectResults.length > 0 && enteredSubjects.length === subjectResults.length;
   const failed = enteredSubjects.some((item) => item.passed === false);
 
   return {
@@ -185,6 +181,7 @@ const calculateStudentExamResult = ({ student, exam, subjects, markMap }) => {
     fullMarks,
     enteredSubjectCount: enteredSubjects.length,
     subjectCount: subjectResults.length,
+    missingSubjectCount: subjectResults.length - enteredSubjects.length,
     percentage: round(percentage, 1),
     gpa: round(gpa),
     status: !enteredSubjects.length
@@ -203,7 +200,8 @@ const calculateCumulativeGpa = ({ student, exams, subjectsById, fallbackSubjects
   const termGpas = exams
     .map((exam) => {
       const subjects = getExamSubjects(exam, subjectsById, fallbackSubjects);
-      return calculateStudentExamResult({ student, exam, subjects, markMap }).gpa;
+      const result = calculateStudentExamResult({ student, exam, subjects, markMap });
+      return result.complete ? result.gpa : null;
     })
     .filter((gpa) => gpa != null);
 
@@ -215,7 +213,7 @@ const calculateCumulativeGpa = ({ student, exams, subjectsById, fallbackSubjects
 
 const applyRanks = (rows) => {
   const rankedRows = rows
-    .filter((row) => row.gpa != null)
+    .filter((row) => row.complete && row.gpa != null)
     .sort((a, b) => b.gpa - a.gpa || b.total - a.total);
 
   let rank = 0;

@@ -111,3 +111,27 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+.ledger-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f8fafc;
+}
+
+.ledger-scroll::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.ledger-scroll::-webkit-scrollbar-track {
+  background: #f8fafc;
+  border-radius: 999px;
+}
+
+.ledger-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+.ledger-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
