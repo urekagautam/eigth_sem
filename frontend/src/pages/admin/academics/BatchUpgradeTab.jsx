@@ -79,61 +79,69 @@ export default function BatchUpgradeTab({ faculties, onComplete }) {
       ).length,
     [form.batch, levelStudents],
   );
-  const occupiedHigherLevelCount = higherLevelStudents.length;
+  const occupiedHigherLevelCount = useMemo(
+    () =>
+      higherLevelStudents.filter(
+        (student) => String(student.admission?.batch) === String(form.batch),
+      ).length,
+    [form.batch, higherLevelStudents],
+  );
 
-  useEffect(() => {
-    const loadStudentsForLevel = async () => {
-      if (!form.facultyId || !form.fromLevel) {
-        setLevelStudents([]);
-        setHigherLevelStudents([]);
-        return;
-      }
+  const loadStudentsForLevel = async ({ showErrors = true } = {}) => {
+    if (!form.facultyId || !form.fromLevel) {
+      setLevelStudents([]);
+      setHigherLevelStudents([]);
+      return;
+    }
 
-      setLoadingStudents(true);
-      try {
-        const sourceResponse = await fetchStudents({
-          facultyId: form.facultyId,
-          level: form.fromLevel,
-        });
-        setLevelStudents(
-          Array.isArray(sourceResponse?.data) ? sourceResponse.data : [],
-        );
-        const sourceStudents = Array.isArray(sourceResponse?.data)
-          ? sourceResponse.data
-          : [];
-        const sourceBatches = Array.from(
-          new Set(sourceStudents.map((student) => String(student.admission?.batch))),
-        ).sort((a, b) => Number(b) - Number(a));
-        setForm((current) => {
-          if (current.batch && sourceBatches.includes(String(current.batch))) {
-            return current;
-          }
-          return { ...current, batch: sourceBatches[0] || "" };
-        });
-
-        if (selectedFaculty && Number(form.fromLevel) < Number(selectedFaculty.maxLevel)) {
-          const higherResponse = await fetchStudents({
-            facultyId: form.facultyId,
-            level: Number(form.fromLevel) + 1,
-          });
-          setHigherLevelStudents(
-            Array.isArray(higherResponse?.data) ? higherResponse.data : [],
-          );
-        } else {
-          setHigherLevelStudents([]);
+    setLoadingStudents(true);
+    try {
+      const sourceResponse = await fetchStudents({
+        facultyId: form.facultyId,
+        level: form.fromLevel,
+      });
+      setLevelStudents(
+        Array.isArray(sourceResponse?.data) ? sourceResponse.data : [],
+      );
+      const sourceStudents = Array.isArray(sourceResponse?.data)
+        ? sourceResponse.data
+        : [];
+      const sourceBatches = Array.from(
+        new Set(sourceStudents.map((student) => String(student.admission?.batch))),
+      ).sort((a, b) => Number(b) - Number(a));
+      setForm((current) => {
+        if (current.batch && sourceBatches.includes(String(current.batch))) {
+          return current;
         }
-      } catch (error) {
-        setLevelStudents([]);
+        return { ...current, batch: sourceBatches[0] || "" };
+      });
+
+      if (selectedFaculty && Number(form.fromLevel) < Number(selectedFaculty.maxLevel)) {
+        const higherResponse = await fetchStudents({
+          facultyId: form.facultyId,
+          level: Number(form.fromLevel) + 1,
+        });
+        setHigherLevelStudents(
+          Array.isArray(higherResponse?.data) ? higherResponse.data : [],
+        );
+      } else {
         setHigherLevelStudents([]);
+      }
+    } catch (error) {
+      setLevelStudents([]);
+      setHigherLevelStudents([]);
+      if (showErrors) {
         setNotice({
           type: "error",
           message: error.message || "Could not load students for this level.",
         });
-      } finally {
-        setLoadingStudents(false);
       }
-    };
+    } finally {
+      setLoadingStudents(false);
+    }
+  };
 
+  useEffect(() => {
     loadStudentsForLevel();
   }, [form.facultyId, form.fromLevel, selectedFaculty]);
 
@@ -195,13 +203,8 @@ export default function BatchUpgradeTab({ faculties, onComplete }) {
               nextLevel,
             )}.`,
       });
-      setLevelStudents((current) =>
-        current.filter(
-          (student) => String(student.admission?.batch) !== String(form.batch),
-        ),
-      );
-      setForm((current) => ({ ...current, batch: "" }));
       onComplete?.();
+      await loadStudentsForLevel({ showErrors: false });
     } catch (error) {
       setNotice({
         type: "error",
