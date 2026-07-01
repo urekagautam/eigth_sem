@@ -272,6 +272,7 @@ export const batchUpgradeStudents = async (req, res, next) => {
 
       const occupiedHigherLevelCount = await Student.countDocuments({
         facultyId: new mongoose.Types.ObjectId(facultyId),
+        admitted_batch: admittedBatch,
         current_level: targetLevel,
         isActive: true,
         academic_status: { $ne: "graduated" },
@@ -303,8 +304,14 @@ export const batchUpgradeStudents = async (req, res, next) => {
     }
 
     const update = shouldGraduate
-      ? { $set: { academic_status: "graduated" } }
-      : { $set: { current_level: targetLevel, academic_status: "active" } };
+      ? { $set: { academic_status: "graduated", isActive: false } }
+      : {
+          $set: {
+            current_level: targetLevel,
+            academic_status: "active",
+            isActive: true,
+          },
+        };
 
     const result = await Student.updateMany(filter, update);
     const updatedCount = result.modifiedCount ?? result.nModified ?? 0;

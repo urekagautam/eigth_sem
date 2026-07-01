@@ -418,25 +418,25 @@ export default function Academics() {
     loadStudents();
   }, [filterFacultyId, filterLevel]);
 
-  useEffect(() => {
-    const loadActiveStudentsForAssignments = async () => {
-      try {
-        const response = await fetchStudents();
-        if (response?.success && Array.isArray(response.data)) {
-          setActiveStudentsForAssignments(
-            response.data.filter(
-              (student) => student.enrollment?.status === "active",
-            ),
-          );
-        }
-      } catch (error) {
-        console.error(
-          "Failed to fetch active students for teacher assignments:",
-          error,
+  const loadActiveStudentsForAssignments = async () => {
+    try {
+      const response = await fetchStudents();
+      if (response?.success && Array.isArray(response.data)) {
+        setActiveStudentsForAssignments(
+          response.data.filter(
+            (student) => student.enrollment?.status === "active",
+          ),
         );
       }
-    };
+    } catch (error) {
+      console.error(
+        "Failed to fetch active students for teacher assignments:",
+        error,
+      );
+    }
+  };
 
+  useEffect(() => {
     loadActiveStudentsForAssignments();
   }, []);
 
@@ -1394,6 +1394,7 @@ export default function Academics() {
             setStudents([]);
             setFilterLevel("");
             setFilterBatch("");
+            loadActiveStudentsForAssignments();
           }}
         />
       )}
