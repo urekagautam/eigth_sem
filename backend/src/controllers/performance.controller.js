@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { Attendance } from "../models/attendance.model.js";
+import { ClassAttendanceSession } from "../models/classAttendanceSession.model.js";
 import { ClassOffering } from "../models/classOffering.model.js";
 import { Exam } from "../models/exam.model.js";
 import { ExamAttendance } from "../models/examAttendance.model.js";
@@ -379,6 +380,33 @@ const buildAttendanceSummary = (records) => {
   };
 };
 
+const dateKey = (value) => new Date(value).toISOString().slice(0, 10);
+
+const buildClassAttendanceSummary = ({ records, sessions }) => {
+  const classDates = new Set(sessions.map((session) => dateKey(session.date)));
+
+  records.forEach((record) => {
+    classDates.add(dateKey(record.date));
+  });
+
+  const presentDates = new Set(
+    records
+      .filter((record) => record.status === "present")
+      .map((record) => dateKey(record.date)),
+  );
+
+  const total = classDates.size;
+  const present = presentDates.size;
+  const absent = Math.max(total - present, 0);
+
+  return {
+    present,
+    absent,
+    total,
+    percentage: total ? round((present / total) * 100, 1) : null,
+  };
+};
+
 export const getStudentPerformanceDetail = async (req, res, next) => {
   try {
     const { studentId } = req.params;
@@ -441,28 +469,28 @@ export const getStudentPerformanceDetail = async (req, res, next) => {
     const attendanceRecords = offeringIds.length
       ? await Attendance.find({
           studentId: student._id,
-          classOfferingId: { $in: offeringIds },
+          $or: [
+            classFilter,
+            { classOfferingId: { $in: offeringIds } },
+          ],
         })
-          .populate({
-            path: "classOfferingId",
-            populate: { path: "subjectId" },
-          })
           .sort({ date: -1 })
       : [];
-
-    const attendanceBySubject = offerings.map((offering) => {
-      const records = attendanceRecords.filter(
-        (record) =>
-          record.classOfferingId?._id?.toString() === offering._id.toString(),
-      );
-      const subject = offering.subjectId;
-      return {
-        subjectId: subject?._id?.toString() || "",
-        subjectName: subject?.subject_name || "Subject",
-        subjectCode: subject?.subject_code || "",
-        ...buildAttendanceSummary(records),
-      };
+    const classAttendanceSessions = await ClassAttendanceSession.find(
+      classFilter,
+    ).sort({ date: -1 });
+    const classAttendanceSummary = buildClassAttendanceSummary({
+      records: attendanceRecords,
+      sessions: classAttendanceSessions,
     });
+    const attendanceSummaryCards = [
+      {
+        subjectId: "class-attendance",
+        subjectName: `${levelLabel(faculty, selectedLevel)} class attendance`,
+        subjectCode: "",
+        ...classAttendanceSummary,
+      },
+    ];
 
     const examAttendanceRecords = await ExamAttendance.find({
       studentId: student._id,
@@ -470,7 +498,7 @@ export const getStudentPerformanceDetail = async (req, res, next) => {
     })
       .populate("examId")
       .populate("subjectId")
-      .sort({ examDate: -1 });
+      .sort({ examDate: -1, updatedAt: -1 });
 
     const quizzes = await Quiz.find({
       ...classFilter,
@@ -535,18 +563,22 @@ export const getStudentPerformanceDetail = async (req, res, next) => {
           subjects: normalizedSubjects,
           exams: examResults,
           attendance: {
-            overall: buildAttendanceSummary(attendanceRecords),
-            bySubject: attendanceBySubject,
+            overall: classAttendanceSummary,
+            bySubject: attendanceSummaryCards,
           },
           examAttendance: {
             overall: buildAttendanceSummary(examAttendanceRecords),
             records: examAttendanceRecords.map((record) => ({
               examId: record.examId?._id?.toString() || record.examId?.toString(),
-              examTitle: record.examId?.title || "Exam",
+              examTitle: `${
+                record.subjectId?.subject_code
+                  ? `${record.subjectId.subject_code} - ${record.subjectId.subject_name}`
+                  : record.subjectId?.subject_name || "Subject"
+              } - ${record.examId?.title || "Exam"}`,
               subjectId:
                 record.subjectId?._id?.toString() || record.subjectId?.toString(),
-              subjectName: record.subjectId?.subject_name || "Subject",
-              subjectCode: record.subjectId?.subject_code || "",
+              subjectName: record.examId?.title || "Exam",
+              subjectCode: "",
               date: record.examDate,
               status: record.status,
             })),
@@ -559,7 +591,22 @@ export const getStudentPerformanceDetail = async (req, res, next) => {
               submitted: submittedQuizResults.length,
               total: quizResults.length,
             },
-            records: quizResults,
+            records: quizResults.length
+              ? [
+                  {
+                    quizId: "quiz-total",
+                    title: "Total quiz marks",
+                    subjectName: "All subjects",
+                    subjectCode: "",
+                    obtainedMarks: quizObtained,
+                    fullMarks: quizFull,
+                    percentage: percentage(quizObtained, quizFull),
+                    submittedAt: null,
+                    status: "summary",
+                  },
+                  ...quizResults,
+                ]
+              : [],
           },
           summary: {
             cumulativeGpa: cumulative.cumulativeGpa,

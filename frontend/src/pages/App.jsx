@@ -13,7 +13,7 @@ import Attendance from "./admin/Attendance";
 import StudentPerformance from "./admin/StudentPerformance";
 import ChangePassword from "./admin/ChangePassword";
 import FacultyManagement from "./admin/academics/FacultyManagement";
-import StudentPerformanceDetail from "./admin/academics/StudentPerformanceDetail";
+import StudentPerformanceDetail from "./admin/academics/StudentPerformanceDetailWithExamFilter";
 import NotFoundPage from "./NotFoundPage";
 import TeacherDashboard from "./teacher/Dashboard";
 import TeacherAttendance from "./teacher/Attendance";

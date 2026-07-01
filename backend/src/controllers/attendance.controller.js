@@ -79,8 +79,8 @@ const normalizeAssignment = (offering, relatedOfferings = [offering]) => {
     batch: String(offering.batch),
     subjects,
     subjectId: subjects[0]?.subjectId || "",
-    subjectName: subjects.map((subject) => subject.subjectName).join(", "),
-    subjectCode: subjects[0]?.subjectCode || "",
+    subjectName: "Semester class attendance",
+    subjectCode: "",
     teacherName: teacherFullName(offering.teacherId),
   };
 };
