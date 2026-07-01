@@ -35,3 +35,11 @@ export const fetchPerformanceLedger = async ({
   });
   return handleResponse(response);
 };
+
+export const fetchStudentPerformanceDetail = async (studentId) => {
+  const response = await fetch(`${PERFORMANCE_API_URL}/students/${studentId}`, {
+    method: "GET",
+    headers: getHeaders(),
+  });
+  return handleResponse(response);
+};

@@ -12,6 +12,7 @@ import {
   BookOpen,
   Eye,
   EyeOff,
+  Upload,
 } from "lucide-react";
 import Button from "../../components/Button";
 import {
@@ -28,6 +29,7 @@ import {
   createStudent as apiCreateStudent,
   updateStudent as apiUpdateStudent,
   deleteStudent as apiDeleteStudent,
+  importStudents as apiImportStudents,
 } from "../../services/apiAddStudent";
 import TeacherProfile from "./academics/TeacherProfile";
 import {
@@ -361,6 +363,9 @@ export default function Academics() {
   const [editingStudent, setEditingStudent] = useState(null);
   const [newStudentCreds, setNewStudentCreds] = useState(null);
   const [visiblePasswords, setVisiblePasswords] = useState({});
+  const [importingStudents, setImportingStudents] = useState(false);
+  const [importNotice, setImportNotice] = useState(null);
+  const studentImportInputRef = useRef(null);
 
   const [showAddTeacher, setShowAddTeacher] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState(null);
@@ -641,6 +646,48 @@ export default function Academics() {
     } catch (error) {
       console.error("Failed to save student:", error);
       alert(error.message || "Failed to save student");
+    }
+  };
+
+  const handleImportStudents = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImportingStudents(true);
+    setImportNotice(null);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const studentsToImport = Array.isArray(parsed) ? parsed : parsed.students;
+      if (!Array.isArray(studentsToImport) || studentsToImport.length === 0) {
+        throw new Error("JSON must be an array or contain a students array.");
+      }
+
+      const response = await apiImportStudents(studentsToImport);
+      const data = response?.data || {};
+      setImportNotice({
+        type: "success",
+        message: `Imported ${data.createdCount || 0} student(s). Skipped ${data.skippedCount || 0}.`,
+      });
+
+      if (filterFacultyId && filterLevel) {
+        const refreshed = await fetchStudents({
+          facultyId: filterFacultyId,
+          level: filterLevel,
+        });
+        if (refreshed?.success && Array.isArray(refreshed.data)) {
+          setStudents(refreshed.data);
+        }
+      }
+      await loadActiveStudentsForAssignments();
+    } catch (error) {
+      setImportNotice({
+        type: "error",
+        message: error.message || "Student import failed.",
+      });
+    } finally {
+      setImportingStudents(false);
+      event.target.value = "";
     }
   };
 
@@ -1023,7 +1070,34 @@ export default function Academics() {
             >
               + Add Student
             </Button>
+            <input
+              ref={studentImportInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={handleImportStudents}
+            />
+            <Button
+              variant="outline"
+              onClick={() => studentImportInputRef.current?.click()}
+              disabled={importingStudents}
+            >
+              <Upload className="w-4 h-4 inline mr-1 text-blue-600" />
+              {importingStudents ? "Importing" : "Import JSON"}
+            </Button>
           </div>
+
+          {importNotice && (
+            <p
+              className={`rounded-lg px-4 py-3 text-sm ${
+                importNotice.type === "success"
+                  ? "bg-green-50 text-green-800 border border-green-100"
+                  : "bg-red-50 text-red-800 border border-red-100"
+              }`}
+            >
+              {importNotice.message}
+            </p>
+          )}
 
           <StudentProfile
             isOpen={showAddStudent}
@@ -1140,6 +1214,16 @@ export default function Academics() {
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2 justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            navigate(`/admin/academics/students/${s._id}`)
+                          }
+                        >
+                          <Eye className="w-3 h-3 inline mr-1 text-blue-600" />
+                          View
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
