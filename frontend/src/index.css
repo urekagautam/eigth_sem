@@ -111,3 +111,81 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+.ledger-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f8fafc;
+}
+
+.ledger-scroll::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.ledger-scroll::-webkit-scrollbar-track {
+  background: #f8fafc;
+  border-radius: 999px;
+}
+
+.ledger-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+.ledger-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.grid.gap-6.xl\:grid-cols-2 {
+  align-items: flex-start;
+}
+
+.grid.gap-6.xl\:grid-cols-2 > section:nth-child(2) .space-y-3 {
+  max-height: 340px;
+  overflow-y: auto;
+  padding-right: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f8fafc;
+}
+
+.grid.gap-6.xl\:grid-cols-2 > section:nth-child(2) .space-y-3::-webkit-scrollbar {
+  width: 8px;
+}
+
+.grid.gap-6.xl\:grid-cols-2 > section:nth-child(2) .space-y-3::-webkit-scrollbar-track {
+  background: #f8fafc;
+  border-radius: 999px;
+}
+
+.grid.gap-6.xl\:grid-cols-2 > section:nth-child(2) .space-y-3::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+@media (min-width: 1280px) {
+  .grid.gap-6.xl\:grid-cols-2:has(+ section) {
+    display: block;
+  }
+
+  .grid.gap-6.xl\:grid-cols-2:has(+ section) > section:first-child {
+    float: left;
+    width: calc(50% - 12px);
+  }
+
+  .grid.gap-6.xl\:grid-cols-2:has(+ section) > section:nth-child(2) {
+    float: right;
+    width: calc(50% - 12px);
+  }
+
+  .grid.gap-6.xl\:grid-cols-2:has(+ section) + section {
+    clear: left;
+    width: calc(50% - 12px);
+    margin-top: 24px;
+  }
+
+  .grid.gap-6.xl\:grid-cols-2 + section {
+    margin-top: 24px !important;
+    position: relative;
+    top: 24px;
+  }
+}

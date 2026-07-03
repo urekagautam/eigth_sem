@@ -1,3 +1,5 @@
+import { clearSession } from "../utils/authSession";
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 const ATTENDANCE_API_URL = `${API_BASE_URL}/api/attendance`;
 
@@ -11,6 +13,11 @@ const getHeaders = () => {
 
 const handleResponse = async (response) => {
   const result = await response.json().catch(() => null);
+  if (response.status === 401) {
+    clearSession();
+    window.location.assign("/login");
+    throw new Error("Session expired. Please login again.");
+  }
   if (!response.ok) {
     throw new Error(result?.message || "Attendance request failed");
   }

@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { Attendance } from "../models/attendance.model.js";
+import { ClassAttendanceSession } from "../models/classAttendanceSession.model.js";
 import { ClassOffering } from "../models/classOffering.model.js";
 import { Exam } from "../models/exam.model.js";
 import { ExamAttendance } from "../models/examAttendance.model.js";
@@ -15,11 +16,29 @@ const ensureRole = (req, role) => {
 };
 
 const startOfDay = (dateValue) => {
-  const date = new Date(dateValue);
+  if (!dateValue) {
+    throw new ApiError(400, "Valid attendance date is required");
+  }
+  const date =
+    typeof dateValue === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateValue)
+      ? new Date(`${dateValue}T00:00:00`)
+      : new Date(dateValue);
   if (Number.isNaN(date.getTime())) {
     throw new ApiError(400, "Valid attendance date is required");
   }
   date.setHours(0, 0, 0, 0);
+  return date;
+};
+
+const todayStart = () => {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
+const endOfDay = (dateValue) => {
+  const date = new Date(dateValue);
+  date.setHours(23, 59, 59, 999);
   return date;
 };
 
@@ -60,8 +79,8 @@ const normalizeAssignment = (offering, relatedOfferings = [offering]) => {
     batch: String(offering.batch),
     subjects,
     subjectId: subjects[0]?.subjectId || "",
-    subjectName: subjects.map((subject) => subject.subjectName).join(", "),
-    subjectCode: subjects[0]?.subjectCode || "",
+    subjectName: "Semester class attendance",
+    subjectCode: "",
     teacherName: teacherFullName(offering.teacherId),
   };
 };
@@ -99,6 +118,22 @@ const normalizeAttendance = (record) => ({
   updatedAt: record.updatedAt,
 });
 
+const normalizeClassSession = (session) => ({
+  id: session._id.toString(),
+  classOfferingId:
+    session.classOfferingId?._id?.toString() || session.classOfferingId.toString(),
+  date: session.date.toISOString().slice(0, 10),
+  totalStudents: session.totalStudents,
+  presentCount: session.presentCount,
+  markedBy: session.markedBy
+    ? {
+        id: session.markedBy._id?.toString() || session.markedBy.toString(),
+        name: teacherFullName(session.markedBy),
+      }
+    : null,
+  updatedAt: session.updatedAt,
+});
+
 const normalizeExamAttendance = (record) => ({
   id: record._id.toString(),
   examId: record.examId?.toString(),
@@ -113,6 +148,17 @@ const normalizeExamAttendance = (record) => ({
       }
     : null,
   updatedAt: record.updatedAt,
+});
+
+const normalizeClassExamSession = (exam, item) => ({
+  examId: exam._id.toString(),
+  examItemId: item._id.toString(),
+  title: exam.title,
+  subjectId: item.subjectId?._id?.toString() || item.subjectId?.toString(),
+  subjectName: item.subjectId?.subject_name || "",
+  subjectCode: item.subjectId?.subject_code || "",
+  date: item.examDate.toISOString().slice(0, 10),
+  time: item.examTime,
 });
 
 const activeStudentFilterForOffering = (offering) => ({
@@ -144,6 +190,8 @@ const attendanceGroupQuery = async (offering) => {
     ],
   };
 };
+
+const classSessionGroupQuery = (offering) => attendanceGroupSet(offering);
 
 const getTeacherOffering = async (teacherId, classOfferingId) => {
   if (!mongoose.Types.ObjectId.isValid(classOfferingId)) {
@@ -204,11 +252,16 @@ const dedupeClassGroups = (offerings) => {
   return Array.from(groups.values());
 };
 
-const buildSummary = (records, students) => {
+const buildSummary = (records, students, totalClasses) => {
   const stats = new Map(
     students.map((student) => [
       student._id.toString(),
-      { studentId: student._id.toString(), present: 0, absent: 0, total: 0 },
+      {
+        studentId: student._id.toString(),
+        present: 0,
+        absent: 0,
+        total: totalClasses,
+      },
     ]),
   );
 
@@ -217,15 +270,18 @@ const buildSummary = (records, students) => {
       record.studentId?._id?.toString() || record.studentId.toString();
     const item = stats.get(studentId);
     if (!item) return;
-    item.total += 1;
     item[record.status] += 1;
   });
 
   return Array.from(stats.values()).map((item) => ({
     ...item,
+    absent: Math.max(item.total - item.present, item.absent),
     percentage: item.total ? Number(((item.present / item.total) * 100).toFixed(1)) : 0,
   }));
 };
+
+const countClassDatesFromRecords = (records) =>
+  new Set(records.map((record) => record.date.toISOString().slice(0, 10))).size;
 
 export const getTeacherAttendanceContext = async (req, res, next) => {
   try {
@@ -262,6 +318,23 @@ export const getTeacherAttendanceClass = async (req, res, next) => {
     const records = await Attendance.find(await attendanceGroupQuery(offering))
       .populate("markedBy")
       .sort({ date: -1, updatedAt: -1 });
+    const classSessions = await ClassAttendanceSession.find(
+      classSessionGroupQuery(offering),
+    )
+      .populate("markedBy")
+      .sort({ date: -1, updatedAt: -1 });
+    const classTotal = Math.max(
+      classSessions.length,
+      countClassDatesFromRecords(records),
+    );
+    const exams = await Exam.find({
+      facultyId: offering.facultyId._id,
+      level: offering.level,
+      batch: offering.batch,
+    }).populate("items.subjectId");
+    const examSessions = exams.flatMap((exam) =>
+      (exam.items || []).map((item) => normalizeClassExamSession(exam, item)),
+    );
 
     res.status(200).json(
       new ApiResponse(
@@ -269,7 +342,10 @@ export const getTeacherAttendanceClass = async (req, res, next) => {
         {
           assignment: normalizeAssignment(offering),
           students: students.map(normalizeStudent),
-          summary: buildSummary(records, students),
+          summary: buildSummary(records, students, classTotal),
+          classTotal,
+          classSessions: classSessions.map(normalizeClassSession),
+          examSessions,
         },
         "Teacher attendance class retrieved successfully",
       ),
@@ -289,11 +365,18 @@ export const getTeacherAttendanceByDate = async (req, res, next) => {
       ...(await attendanceGroupQuery(offering)),
       date,
     }).populate("markedBy");
+    const classSession = await ClassAttendanceSession.findOne({
+      ...classSessionGroupQuery(offering),
+      date,
+    }).populate("markedBy");
 
     res.status(200).json(
       new ApiResponse(
         200,
-        { records: records.map(normalizeAttendance) },
+        {
+          records: records.map(normalizeAttendance),
+          classSession: classSession ? normalizeClassSession(classSession) : null,
+        },
         "Attendance records retrieved successfully",
       ),
     );
@@ -307,12 +390,52 @@ export const saveTeacherAttendance = async (req, res, next) => {
     const teacherId = ensureRole(req, "teacher");
     const offering = await getTeacherOffering(teacherId, req.params.classOfferingId);
     const date = startOfDay(req.body.date);
+    if (date > todayStart()) {
+      throw new ApiError(400, "Attendance cannot be marked for future dates");
+    }
+    const examOnDate = await Exam.findOne({
+      facultyId: offering.facultyId._id,
+      level: offering.level,
+      batch: offering.batch,
+      "items.examDate": { $gte: date, $lte: endOfDay(date) },
+    });
+    if (examOnDate) {
+      throw new ApiError(400, "This is an exam day. Regular attendance is not required");
+    }
     const records = Array.isArray(req.body.records) ? req.body.records : [];
 
     const activeStudents = await Student.find(activeStudentFilterForOffering(offering)).select("_id");
     const validStudentIds = new Set(activeStudents.map((student) => student._id.toString()));
+    const normalizedRecords = activeStudents.map((student) => {
+      const submitted = records.find(
+        (item) => String(item.studentId || "") === student._id.toString(),
+      );
+      return {
+        studentId: student._id.toString(),
+        status: submitted?.status === "present" ? "present" : "absent",
+      };
+    });
+    const presentCount = normalizedRecords.filter(
+      (item) => item.status === "present",
+    ).length;
 
-    for (const item of records) {
+    if (presentCount === 0) {
+      await Attendance.deleteMany({
+        ...(await attendanceGroupQuery(offering)),
+        date,
+      });
+      await ClassAttendanceSession.deleteOne({
+        ...classSessionGroupQuery(offering),
+        date,
+      });
+
+      res
+        .status(200)
+        .json(new ApiResponse(200, null, "No present students, so this date was not counted as a class"));
+      return;
+    }
+
+    for (const item of normalizedRecords) {
       const studentId = String(item.studentId || "");
       if (!validStudentIds.has(studentId)) continue;
 
@@ -342,6 +465,23 @@ export const saveTeacherAttendance = async (req, res, next) => {
         });
       }
     }
+
+    await ClassAttendanceSession.findOneAndUpdate(
+      {
+        ...classSessionGroupQuery(offering),
+        date,
+      },
+      {
+        $set: {
+          classOfferingId: offering._id,
+          ...attendanceGroupSet(offering),
+          totalStudents: activeStudents.length,
+          presentCount,
+          markedBy: teacherId,
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
 
     res.status(200).json(new ApiResponse(200, null, "Attendance saved successfully"));
   } catch (error) {
@@ -395,11 +535,23 @@ export const getAdminGeneralAttendance = async (req, res, next) => {
       const records = await Attendance.find(await attendanceGroupQuery(offering))
         .populate("markedBy")
         .sort({ date: -1, updatedAt: -1 });
+      const classSessions = await ClassAttendanceSession.find(
+        classSessionGroupQuery(offering),
+      )
+        .populate("markedBy")
+        .sort({ date: -1, updatedAt: -1 });
+
+      const classTotal = Math.max(
+        classSessions.length,
+        countClassDatesFromRecords(records),
+      );
 
       activeClasses.push({
         assignment: normalizeAssignment(offering, relatedOfferings),
         students: students.map(normalizeStudent),
-        summary: buildSummary(records, students),
+        summary: buildSummary(records, students, classTotal),
+        classTotal,
+        classSessions: classSessions.map(normalizeClassSession),
         records: records.map(normalizeAttendance),
       });
     }

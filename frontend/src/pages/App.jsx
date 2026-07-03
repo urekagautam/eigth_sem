@@ -13,6 +13,7 @@ import Attendance from "./admin/Attendance";
 import StudentPerformance from "./admin/StudentPerformance";
 import ChangePassword from "./admin/ChangePassword";
 import FacultyManagement from "./admin/academics/FacultyManagement";
+import StudentPerformanceDetail from "./admin/academics/StudentPerformanceDetailWithExamFilter";
 import NotFoundPage from "./NotFoundPage";
 import TeacherDashboard from "./teacher/Dashboard";
 import TeacherAttendance from "./teacher/Attendance";
@@ -46,6 +47,10 @@ function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="academics" element={<Academics />} />
           <Route path="academics/faculties" element={<FacultyManagement />} />
+          <Route
+            path="academics/students/:studentId"
+            element={<StudentPerformanceDetail />}
+          />
           <Route path="exams" element={<Exams />} />
           <Route path="quizzes" element={<AdminQuizzes />} />
           <Route path="notices" element={<Notices />} />

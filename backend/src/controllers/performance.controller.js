@@ -1,7 +1,13 @@
 import mongoose from "mongoose";
+import { Attendance } from "../models/attendance.model.js";
+import { ClassAttendanceSession } from "../models/classAttendanceSession.model.js";
+import { ClassOffering } from "../models/classOffering.model.js";
 import { Exam } from "../models/exam.model.js";
+import { ExamAttendance } from "../models/examAttendance.model.js";
 import { Faculty } from "../models/faculty.model.js";
 import { Marks } from "../models/marks.model.js";
+import { Quiz } from "../models/quiz.model.js";
+import { QuizSubmission } from "../models/quizSubmission.model.js";
 import { Student } from "../models/student.model.js";
 import { Subject } from "../models/subject.model.js";
 import { ApiError } from "../utils/ApiError.js";
@@ -63,6 +69,31 @@ const normalizeStudent = (student, faculty) => ({
     termCount: student.performance_summary?.term_count || 0,
     updatedAt: student.performance_summary?.updated_at || null,
   },
+});
+
+const normalizeStudentProfile = (student, faculty) => ({
+  ...normalizeStudent(student, faculty),
+  profile: {
+    firstName: student.first_name,
+    middleName: student.middle_name || "",
+    lastName: student.last_name,
+    gender: student.gender,
+    bloodGroup: student.blood_group || "",
+    email: student.email,
+    mobile: student.mobile_no,
+    citizenshipNo: student.citizenship_no || "",
+  },
+  guardian: {
+    name: student.guardian_name || "",
+    mobile: student.guardian_mobile || "",
+    fatherName: student.father_name || "",
+    fatherMobile: student.father_mobile || "",
+    motherName: student.mother_name || "",
+    motherMobile: student.mother_mobile || "",
+  },
+  universityRegNo: student.registration_no || "",
+  universitySymbolNo: student.symbol_no || "",
+  username: student.username,
 });
 
 const normalizeSubject = (subject) => ({
@@ -136,16 +167,12 @@ const calculateStudentExamResult = ({ student, exam, subjects, markMap }) => {
   );
   const total = enteredSubjects.reduce((sum, item) => sum + item.obtainedMarks, 0);
   const fullMarks = subjectResults.reduce((sum, item) => sum + item.fullMarks, 0);
-  const enteredFullMarks = enteredSubjects.reduce(
-    (sum, item) => sum + item.fullMarks,
-    0,
-  );
-  const percentage = enteredFullMarks ? (total / enteredFullMarks) * 100 : null;
-  const gpa = enteredSubjects.length
+  const complete = subjectResults.length > 0 && enteredSubjects.length === subjectResults.length;
+  const percentage = complete && fullMarks ? (total / fullMarks) * 100 : null;
+  const gpa = complete
     ? enteredSubjects.reduce((sum, item) => sum + item.gradePoint, 0) /
       enteredSubjects.length
     : null;
-  const complete = subjectResults.length > 0 && enteredSubjects.length === subjectResults.length;
   const failed = enteredSubjects.some((item) => item.passed === false);
 
   return {
@@ -155,6 +182,7 @@ const calculateStudentExamResult = ({ student, exam, subjects, markMap }) => {
     fullMarks,
     enteredSubjectCount: enteredSubjects.length,
     subjectCount: subjectResults.length,
+    missingSubjectCount: subjectResults.length - enteredSubjects.length,
     percentage: round(percentage, 1),
     gpa: round(gpa),
     status: !enteredSubjects.length
@@ -173,7 +201,8 @@ const calculateCumulativeGpa = ({ student, exams, subjectsById, fallbackSubjects
   const termGpas = exams
     .map((exam) => {
       const subjects = getExamSubjects(exam, subjectsById, fallbackSubjects);
-      return calculateStudentExamResult({ student, exam, subjects, markMap }).gpa;
+      const result = calculateStudentExamResult({ student, exam, subjects, markMap });
+      return result.complete ? result.gpa : null;
     })
     .filter((gpa) => gpa != null);
 
@@ -185,7 +214,7 @@ const calculateCumulativeGpa = ({ student, exams, subjectsById, fallbackSubjects
 
 const applyRanks = (rows) => {
   const rankedRows = rows
-    .filter((row) => row.gpa != null)
+    .filter((row) => row.complete && row.gpa != null)
     .sort((a, b) => b.gpa - a.gpa || b.total - a.total);
 
   let rank = 0;
@@ -329,6 +358,262 @@ export const getPerformanceLedger = async (req, res, next) => {
           gpaScale: GPA_SCALE,
         },
         "Performance ledger retrieved successfully",
+      ),
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+const percentage = (obtained, full) =>
+  full ? round((Number(obtained || 0) / Number(full)) * 100, 1) : null;
+
+const buildAttendanceSummary = (records) => {
+  const total = records.length;
+  const present = records.filter((record) => record.status === "present").length;
+  const absent = total - present;
+  return {
+    present,
+    absent,
+    total,
+    percentage: total ? round((present / total) * 100, 1) : null,
+  };
+};
+
+const dateKey = (value) => new Date(value).toISOString().slice(0, 10);
+
+const buildClassAttendanceSummary = ({ records, sessions }) => {
+  const classDates = new Set(sessions.map((session) => dateKey(session.date)));
+
+  records.forEach((record) => {
+    classDates.add(dateKey(record.date));
+  });
+
+  const presentDates = new Set(
+    records
+      .filter((record) => record.status === "present")
+      .map((record) => dateKey(record.date)),
+  );
+
+  const total = classDates.size;
+  const present = presentDates.size;
+  const absent = Math.max(total - present, 0);
+
+  return {
+    present,
+    absent,
+    total,
+    percentage: total ? round((present / total) * 100, 1) : null,
+  };
+};
+
+export const getStudentPerformanceDetail = async (req, res, next) => {
+  try {
+    const { studentId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(studentId)) {
+      throw new ApiError(400, "Valid student is required");
+    }
+
+    const student = await Student.findById(studentId).populate("facultyId");
+    if (!student) throw new ApiError(404, "Student not found");
+    const faculty = student.facultyId;
+    if (!faculty) throw new ApiError(404, "Student faculty not found");
+
+    const selectedLevel = Number(student.current_level);
+    const selectedBatch = Number(student.admitted_batch);
+    const classFilter = {
+      facultyId: faculty._id,
+      level: selectedLevel,
+      batch: selectedBatch,
+    };
+
+    const subjects = await Subject.find({
+      facultyId: faculty._id,
+      level: selectedLevel,
+    }).sort({ subject_name: 1 });
+    const normalizedSubjects = subjects.map(normalizeSubject);
+    const subjectsById = new Map(
+      normalizedSubjects.map((subject) => [subject._id, subject]),
+    );
+
+    const exams = await Exam.find(classFilter)
+      .populate("facultyId")
+      .sort({ createdAt: 1 });
+    const markMap = await buildMarkMap(
+      exams.map((exam) => exam._id),
+      [student._id],
+    );
+
+    const examResults = exams.map((exam) => {
+      const result = calculateStudentExamResult({
+        student,
+        exam,
+        subjects: getExamSubjects(exam, subjectsById, normalizedSubjects),
+        markMap,
+      });
+      return {
+        exam: normalizeExam(exam),
+        total: result.total,
+        fullMarks: result.fullMarks,
+        enteredSubjectCount: result.enteredSubjectCount,
+        subjectCount: result.subjectCount,
+        percentage: result.percentage,
+        gpa: result.gpa,
+        status: result.status,
+        subjectResults: result.subjectResults,
+      };
+    });
+
+    const offerings = await ClassOffering.find(classFilter).populate("subjectId");
+    const offeringIds = offerings.map((offering) => offering._id);
+    const attendanceRecords = offeringIds.length
+      ? await Attendance.find({
+          studentId: student._id,
+          $or: [
+            classFilter,
+            { classOfferingId: { $in: offeringIds } },
+          ],
+        })
+          .sort({ date: -1 })
+      : [];
+    const classAttendanceSessions = await ClassAttendanceSession.find(
+      classFilter,
+    ).sort({ date: -1 });
+    const classAttendanceSummary = buildClassAttendanceSummary({
+      records: attendanceRecords,
+      sessions: classAttendanceSessions,
+    });
+    const attendanceSummaryCards = [
+      {
+        subjectId: "class-attendance",
+        subjectName: `${levelLabel(faculty, selectedLevel)} class attendance`,
+        subjectCode: "",
+        ...classAttendanceSummary,
+      },
+    ];
+
+    const examAttendanceRecords = await ExamAttendance.find({
+      studentId: student._id,
+      ...classFilter,
+    })
+      .populate("examId")
+      .populate("subjectId")
+      .sort({ examDate: -1, updatedAt: -1 });
+
+    const quizzes = await Quiz.find({
+      ...classFilter,
+      status: "published",
+    })
+      .populate("subjectId")
+      .sort({ availableFrom: 1, createdAt: 1 });
+    const quizSubmissions = quizzes.length
+      ? await QuizSubmission.find({
+          studentId: student._id,
+          quizId: { $in: quizzes.map((quiz) => quiz._id) },
+        })
+      : [];
+    const submissionByQuiz = new Map(
+      quizSubmissions.map((submission) => [submission.quizId.toString(), submission]),
+    );
+    const quizResults = quizzes.map((quiz) => {
+      const submission = submissionByQuiz.get(quiz._id.toString());
+      return {
+        quizId: quiz._id.toString(),
+        title: quiz.title,
+        subjectName: quiz.subjectId?.subject_name || "Subject",
+        subjectCode: quiz.subjectId?.subject_code || "",
+        obtainedMarks: submission?.obtainedMarks ?? null,
+        fullMarks: submission?.fullMarks ?? quiz.questions?.length ?? 0,
+        percentage: submission
+          ? percentage(submission.obtainedMarks, submission.fullMarks)
+          : null,
+        submittedAt: submission?.submittedAt || null,
+        status: submission ? "submitted" : "pending",
+      };
+    });
+    const submittedQuizResults = quizResults.filter(
+      (quiz) => quiz.obtainedMarks != null,
+    );
+    const quizObtained = submittedQuizResults.reduce(
+      (sum, quiz) => sum + Number(quiz.obtainedMarks || 0),
+      0,
+    );
+    const quizFull = submittedQuizResults.reduce(
+      (sum, quiz) => sum + Number(quiz.fullMarks || 0),
+      0,
+    );
+
+    const cumulative = calculateCumulativeGpa({
+      student,
+      exams,
+      subjectsById,
+      fallbackSubjects: normalizedSubjects,
+      markMap,
+    });
+
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          student: normalizeStudentProfile(student, faculty),
+          faculty: normalizeFaculty(faculty),
+          level: String(selectedLevel),
+          levelLabel: levelLabel(faculty, selectedLevel),
+          batch: String(selectedBatch),
+          subjects: normalizedSubjects,
+          exams: examResults,
+          attendance: {
+            overall: classAttendanceSummary,
+            bySubject: attendanceSummaryCards,
+          },
+          examAttendance: {
+            overall: buildAttendanceSummary(examAttendanceRecords),
+            records: examAttendanceRecords.map((record) => ({
+              examId: record.examId?._id?.toString() || record.examId?.toString(),
+              examTitle: `${
+                record.subjectId?.subject_code
+                  ? `${record.subjectId.subject_code} - ${record.subjectId.subject_name}`
+                  : record.subjectId?.subject_name || "Subject"
+              } - ${record.examId?.title || "Exam"}`,
+              subjectId:
+                record.subjectId?._id?.toString() || record.subjectId?.toString(),
+              subjectName: record.examId?.title || "Exam",
+              subjectCode: "",
+              date: record.examDate,
+              status: record.status,
+            })),
+          },
+          quizzes: {
+            overall: {
+              obtainedMarks: quizObtained,
+              fullMarks: quizFull,
+              percentage: percentage(quizObtained, quizFull),
+              submitted: submittedQuizResults.length,
+              total: quizResults.length,
+            },
+            records: quizResults.length
+              ? [
+                  {
+                    quizId: "quiz-total",
+                    title: "Total quiz marks",
+                    subjectName: "All subjects",
+                    subjectCode: "",
+                    obtainedMarks: quizObtained,
+                    fullMarks: quizFull,
+                    percentage: percentage(quizObtained, quizFull),
+                    submittedAt: null,
+                    status: "summary",
+                  },
+                  ...quizResults,
+                ]
+              : [],
+          },
+          summary: {
+            cumulativeGpa: cumulative.cumulativeGpa,
+            termCount: cumulative.termCount,
+          },
+        },
+        "Student performance detail retrieved successfully",
       ),
     );
   } catch (error) {

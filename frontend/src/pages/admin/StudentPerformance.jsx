@@ -23,6 +23,7 @@ const getLevelOptions = (faculty) => {
 
 const formatMark = (value) => (value == null ? "--" : value);
 const formatGpa = (value) => (value == null ? "--" : Number(value).toFixed(2));
+const pendingText = "Pending";
 
 const statusClass = (status) => {
   if (status === "Passed") return "bg-green-50 text-green-700 border-green-100";
@@ -137,7 +138,7 @@ export default function StudentPerformance() {
   }).toString();
 
   const summary = useMemo(() => {
-    const withGpa = rows.filter((row) => row.gpa != null);
+    const withGpa = rows.filter((row) => row.complete && row.gpa != null);
     if (!withGpa.length) return null;
     const avg =
       withGpa.reduce((sum, row) => sum + Number(row.gpa), 0) / withGpa.length;
@@ -210,7 +211,7 @@ export default function StudentPerformance() {
                     {currentExam?.title || "No exam selected"}
                   </p>
                   <p className="text-sm text-gray-600">
-                    Rank {currentStudentRow.rank}
+                    Rank {currentStudentRow.complete ? currentStudentRow.rank : pendingText}
                   </p>
                 </div>
                 <div>
@@ -218,7 +219,9 @@ export default function StudentPerformance() {
                     Cumulative GPA
                   </p>
                   <p className="mt-2 text-lg font-semibold text-gray-900">
-                    {formatGpa(currentStudentRow.cumulativeGpa)}
+                    {currentStudentRow.complete
+                      ? formatGpa(currentStudentRow.cumulativeGpa)
+                      : pendingText}
                   </p>
                   <p className="text-sm text-gray-600">
                     {currentStudentRow.termCount || 0} term(s)
@@ -244,9 +247,9 @@ export default function StudentPerformance() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="ledger-scroll overflow-x-auto rounded-lg border border-gray-200">
                 <table className="min-w-full text-left text-sm text-gray-700">
-                  <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                     <tr>
                       <th className="px-4 py-3">Subject</th>
                       <th className="px-4 py-3">Marks</th>
@@ -284,31 +287,42 @@ export default function StudentPerformance() {
                 </table>
               </div>
 
+              {!currentStudentRow.complete && (
+                <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  GPA, percentage, rank, and cumulative GPA will appear after all
+                  subject marks are entered for this exam.
+                </div>
+              )}
+
               <div className="mt-6 grid gap-4 sm:grid-cols-4">
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                   <p className="text-sm text-gray-500">Total marks</p>
                   <p className="mt-2 text-xl font-semibold text-gray-900">
-                    {currentStudentRow.total}/{currentStudentRow.fullMarks}
+                    {currentStudentRow.complete
+                      ? `${currentStudentRow.total}/${currentStudentRow.fullMarks}`
+                      : pendingText}
                   </p>
                 </div>
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                   <p className="text-sm text-gray-500">Percentage</p>
                   <p className="mt-2 text-xl font-semibold text-gray-900">
                     {currentStudentRow.percentage == null
-                      ? "--"
+                      ? pendingText
                       : `${currentStudentRow.percentage}%`}
                   </p>
                 </div>
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                   <p className="text-sm text-gray-500">Term GPA</p>
                   <p className="mt-2 text-xl font-semibold text-gray-900">
-                    {formatGpa(currentStudentRow.gpa)}
+                    {currentStudentRow.complete
+                      ? formatGpa(currentStudentRow.gpa)
+                      : pendingText}
                   </p>
                 </div>
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                   <p className="text-sm text-gray-500">Rank</p>
                   <p className="mt-2 text-xl font-semibold text-gray-900">
-                    {currentStudentRow.rank}
+                    {currentStudentRow.complete ? currentStudentRow.rank : pendingText}
                   </p>
                 </div>
               </div>
@@ -460,9 +474,9 @@ export default function StudentPerformance() {
       </div>
 
       <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
-        GPA scale: A 4.0 (90+), A- 3.7 (80-89), B+ 3.3 (70-79), B 3.0
-        (60-69), B- 2.7 (50-59), F 0.0 (below 50). Cumulative GPA is the
-        average of a student's terminal exam GPAs for the selected class batch.
+        GPA, rank, and cumulative GPA are calculated only after every subject in
+        the selected exam has marks. Incomplete rows stay pending until teachers
+        finish entering marks.
       </div>
 
       {loading ? (
@@ -471,30 +485,31 @@ export default function StudentPerformance() {
           Loading result ledger...
         </div>
       ) : selectedBatch && currentExam && subjects.length > 0 ? (
-        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-          <table className="min-w-[1100px] text-left text-sm text-gray-700">
-            <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+        <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+          <div className="ledger-scroll overflow-x-auto">
+            <table className="min-w-[980px] border-separate border-spacing-0 text-left text-sm text-slate-700">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-4 py-3">Student</th>
-                <th className="px-4 py-3">Roll No</th>
+                <th className="sticky left-0 z-20 min-w-[240px] bg-slate-50 px-4 py-3 font-semibold">
+                  Student
+                </th>
                 {subjects.map((subject) => (
-                  <th key={subject._id} className="px-4 py-3 min-w-[180px]">
+                  <th key={subject._id} className="min-w-[150px] px-4 py-3 font-semibold">
                     {subject.code ? `${subject.code} - ${subject.name}` : subject.name}
                   </th>
                 ))}
-                <th className="px-4 py-3">Total</th>
-                <th className="px-4 py-3">Term GPA</th>
-                <th className="px-4 py-3">Cumulative</th>
-                <th className="px-4 py-3">Rank</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Action</th>
+                <th className="px-4 py-3 font-semibold">Total</th>
+                <th className="px-4 py-3 font-semibold">Term GPA</th>
+                <th className="px-4 py-3 font-semibold">Cumulative</th>
+                <th className="px-4 py-3 font-semibold">Rank</th>
+                <th className="px-4 py-3 font-semibold">Status</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={subjects.length + 8}
+                    colSpan={subjects.length + 6}
                     className="border-t px-4 py-10 text-center text-gray-500"
                   >
                     No active students found for this batch.
@@ -504,54 +519,76 @@ export default function StudentPerformance() {
                 rows.map((row) => (
                   <tr
                     key={row.student._id}
-                    className={row.failed ? "bg-red-50" : "bg-white"}
+                    className={`group ${
+                      row.failed
+                        ? "bg-red-50"
+                        : row.complete
+                          ? "bg-white"
+                          : "bg-amber-50/35"
+                    } hover:bg-blue-50/50`}
                   >
-                    <td className="border-t px-4 py-3 font-semibold text-gray-900">
-                      {row.student.name}
-                      <p className="text-xs font-normal text-gray-500">
-                        {row.student.studentId}
-                      </p>
+                    <td className="sticky left-0 z-10 min-w-[240px] border-t border-gray-100 bg-inherit px-4 py-3 text-gray-900">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold">{row.student.name}</p>
+                          <p className="text-xs font-normal text-gray-500">
+                            {row.student.studentId}
+                          </p>
+                        </div>
+                        <Link
+                          to={`/admin/student-performance/${row.student.studentId}?${viewQuery}`}
+                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                          title="View student performance"
+                          aria-label={`View performance for ${row.student.name}`}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Link>
+                      </div>
                     </td>
-                    <td className="border-t px-4 py-3">{row.student.rollNo}</td>
                     {row.subjectResults.map((subjectResult) => (
                       <td
                         key={subjectResult.subjectId}
-                        className="border-t px-4 py-3 font-semibold"
+                        className="border-t border-gray-100 px-4 py-3"
                       >
-                        {formatMark(subjectResult.obtainedMarks)}
-                        <span className="ml-2 text-xs font-normal text-gray-500">
-                          {subjectResult.grade || "--"}
+                        <span className="font-semibold">
+                          {formatMark(subjectResult.obtainedMarks)}
                         </span>
+                        {subjectResult.grade ? (
+                          <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                            {subjectResult.grade}
+                          </span>
+                        ) : (
+                          <span className="ml-2 text-xs font-medium text-gray-400">
+                            --
+                          </span>
+                        )}
                       </td>
                     ))}
-                    <td className="border-t px-4 py-3 font-semibold">
-                      {row.total}/{row.fullMarks}
+                    <td className="border-t border-gray-100 px-4 py-3 font-semibold">
+                      {row.complete ? `${row.total}/${row.fullMarks}` : pendingText}
                     </td>
-                    <td className="border-t px-4 py-3">{formatGpa(row.gpa)}</td>
-                    <td className="border-t px-4 py-3">
-                      {formatGpa(row.cumulativeGpa)}
+                    <td className="border-t border-gray-100 px-4 py-3">
+                      {row.complete ? formatGpa(row.gpa) : pendingText}
                     </td>
-                    <td className="border-t px-4 py-3">{row.rank}</td>
-                    <td className="border-t px-4 py-3">
+                    <td className="border-t border-gray-100 px-4 py-3">
+                      {row.complete ? formatGpa(row.cumulativeGpa) : pendingText}
+                    </td>
+                    <td className="border-t border-gray-100 px-4 py-3">
+                      {row.complete ? row.rank : pendingText}
+                    </td>
+                    <td className="border-t border-gray-100 px-4 py-3">
                       <span
                         className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusClass(row.status)}`}
                       >
                         {row.status}
                       </span>
                     </td>
-                    <td className="border-t px-4 py-3">
-                      <Link
-                        to={`/admin/student-performance/${row.student.studentId}?${viewQuery}`}
-                        className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-                      >
-                        <Eye className="w-4 h-4" /> View
-                      </Link>
-                    </td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
+          </div>
         </div>
       ) : (
         <div className="rounded-lg border border-dashed border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
