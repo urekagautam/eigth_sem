@@ -22,6 +22,7 @@ export default function Marks() {
   const [examAttendanceByStudent, setExamAttendanceByStudent] = useState(
     new Map(),
   );
+  const [examAttendanceTaken, setExamAttendanceTaken] = useState(false);
   const [editedMarks, setEditedMarks] = useState({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -54,6 +55,7 @@ export default function Marks() {
       setSelectedExamId("");
       setMarksByStudent(new Map());
       setExamAttendanceByStudent(new Map());
+      setExamAttendanceTaken(false);
       setEditedMarks({});
       if (!selectedOfferingId) return;
 
@@ -81,6 +83,7 @@ export default function Marks() {
     const loadMarks = async () => {
       setMarksByStudent(new Map());
       setExamAttendanceByStudent(new Map());
+      setExamAttendanceTaken(false);
       setEditedMarks({});
       if (!selectedOfferingId || !selectedExamId) return;
       if (classData?.assignment?.classOfferingId !== selectedOfferingId) return;
@@ -97,16 +100,20 @@ export default function Marks() {
         );
         const markMap = new Map();
         const edits = {};
-        (response?.data?.marks || []).forEach((mark) => {
-          markMap.set(mark.studentId, mark);
-          edits[mark.studentId] = String(mark.obtainedMarks ?? "");
-        });
         const attendanceMap = new Map();
         (response?.data?.attendance || []).forEach((record) => {
           attendanceMap.set(record.studentId, record.status);
         });
+        const attendanceTaken = Boolean(response?.data?.attendanceTaken);
+        (response?.data?.marks || []).forEach((mark) => {
+          if (attendanceTaken && attendanceMap.get(mark.studentId) === "present") {
+            markMap.set(mark.studentId, mark);
+            edits[mark.studentId] = String(mark.obtainedMarks ?? "");
+          }
+        });
         setMarksByStudent(markMap);
         setExamAttendanceByStudent(attendanceMap);
+        setExamAttendanceTaken(attendanceTaken);
         setEditedMarks(edits);
       } catch (error) {
         setNotice({
@@ -126,11 +133,13 @@ export default function Marks() {
   const isPublished = currentExam?.published === true;
   const absentStudentIds = useMemo(() => {
     const absent = new Set();
-    examAttendanceByStudent.forEach((status, studentId) => {
-      if (status === "absent") absent.add(studentId);
+    students.forEach((student) => {
+      if (examAttendanceByStudent.get(student._id) !== "present") {
+        absent.add(student._id);
+      }
     });
     return absent;
-  }, [examAttendanceByStudent]);
+  }, [examAttendanceByStudent, students]);
 
   const assignmentOptions = useMemo(
     () =>
@@ -142,13 +151,19 @@ export default function Marks() {
   );
 
   const handleMarkChange = (studentId, value) => {
-    if (isPublished) return;
+    if (isPublished || absentStudentIds.has(studentId)) return;
     const cleaned = value.replace(/[^0-9.]/g, "");
     setEditedMarks((current) => ({ ...current, [studentId]: cleaned }));
   };
 
   const handleSaveMarks = async () => {
-    if (!selectedOfferingId || !selectedExamId || !currentExam || isPublished) {
+    if (
+      !selectedOfferingId ||
+      !selectedExamId ||
+      !currentExam ||
+      isPublished ||
+      !examAttendanceTaken
+    ) {
       return;
     }
 
@@ -173,9 +188,9 @@ export default function Marks() {
         attendanceMap.set(record.studentId, record.status);
       });
       const latestAbsentStudentIds = new Set(
-        Array.from(attendanceMap.entries())
-          .filter(([, status]) => status === "absent")
-          .map(([studentId]) => studentId),
+        students
+          .filter((student) => attendanceMap.get(student._id) !== "present")
+          .map((student) => student._id),
       );
       const markMap = new Map();
       (response?.data?.marks || []).forEach((mark) => {
@@ -185,6 +200,7 @@ export default function Marks() {
       });
       setMarksByStudent(markMap);
       setExamAttendanceByStudent(attendanceMap);
+      setExamAttendanceTaken(Boolean(response?.data?.attendanceTaken));
       setNotice({ type: "success", message: "Marks saved successfully." });
     } catch (error) {
       setNotice({
@@ -197,7 +213,9 @@ export default function Marks() {
   };
 
   const handleDeleteMark = async (studentId) => {
-    if (!selectedOfferingId || !selectedExamId || isPublished) return;
+    if (!selectedOfferingId || !selectedExamId || isPublished || !examAttendanceTaken) {
+      return;
+    }
 
     try {
       await deleteTeacherExamMark(selectedOfferingId, selectedExamId, studentId);
@@ -331,6 +349,12 @@ export default function Marks() {
               This exam is published. Marks are visible but cannot be changed.
             </div>
           )}
+          {!isPublished && !examAttendanceTaken && (
+            <div className="mb-4 rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-800">
+              Exam attendance has not been marked by admin yet. Students are shown
+              as absent until attendance is completed.
+            </div>
+          )}
 
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
@@ -342,7 +366,7 @@ export default function Marks() {
             <Button
               variant="primary"
               onClick={handleSaveMarks}
-              disabled={saving || isPublished || !students.length}
+              disabled={saving || isPublished || !students.length || !examAttendanceTaken}
             >
               {saving ? (
                 <>
@@ -381,6 +405,7 @@ export default function Marks() {
                     students.map((student) => {
                       const record = marksByStudent.get(student._id);
                       const wasAbsent = absentStudentIds.has(student._id);
+                      const attendanceStatus = examAttendanceByStudent.get(student._id);
                       const value =
                         editedMarks[student._id] ??
                         record?.obtainedMarks ??
@@ -425,7 +450,9 @@ export default function Marks() {
                           <td className="px-4 py-3">
                             {wasAbsent ? (
                               <span className="text-sm font-medium text-gray-500">
-                                Exam absent
+                                {examAttendanceTaken && attendanceStatus === "absent"
+                                  ? "Exam absent"
+                                  : "Attendance pending"}
                               </span>
                             ) : (
                               <button

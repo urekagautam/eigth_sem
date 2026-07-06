@@ -210,11 +210,13 @@ export const getTeacherExamMarks = async (req, res, next) => {
           examItemId: examItem._id,
         })
       : [];
+    const attendanceTaken = attendance.length > 0;
 
     res.status(200).json(
       new ApiResponse(
         200,
         {
+          attendanceTaken,
           marks: marks.map((mark) => ({
             id: mark._id.toString(),
             studentId: mark.studentId.toString(),
@@ -259,17 +261,6 @@ export const saveTeacherExamMarks = async (req, res, next) => {
     const examItem = exam.items.find(
       (item) => item.subjectId?.toString() === offering.subjectId._id.toString(),
     );
-    const absentStudentIds = new Set(
-      examItem
-        ? (
-            await ExamAttendance.find({
-              examId: exam._id,
-              examItemId: examItem._id,
-              status: "absent",
-            }).select("studentId")
-          ).map((record) => record.studentId.toString())
-        : [],
-    );
 
     const activeStudents = await Student.find({
       facultyId: offering.facultyId._id,
@@ -281,10 +272,26 @@ export const saveTeacherExamMarks = async (req, res, next) => {
     const validStudentIds = new Set(
       activeStudents.map((student) => student._id.toString()),
     );
+    const attendanceRecords = examItem
+      ? await ExamAttendance.find({
+          examId: exam._id,
+          examItemId: examItem._id,
+        }).select("studentId status")
+      : [];
+
+    if (!attendanceRecords.length) {
+      throw new ApiError(400, "Exam attendance must be marked before entering marks");
+    }
+
+    const presentStudentIds = new Set(
+      attendanceRecords
+        .filter((record) => record.status === "present")
+        .map((record) => record.studentId.toString()),
+    );
 
     for (const item of marks) {
       if (!validStudentIds.has(String(item.studentId))) continue;
-      if (absentStudentIds.has(String(item.studentId))) {
+      if (!presentStudentIds.has(String(item.studentId))) {
         await Marks.deleteOne({
           studentId: item.studentId,
           examId,
