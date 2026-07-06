@@ -6,6 +6,7 @@ import {
   getTeacherQuizClass,
   getTeacherQuizContext,
   publishAdminQuiz,
+  saveStudentQuizProgress,
   saveTeacherQuizDraft,
   sendTeacherQuizToAdmin,
   submitStudentQuiz,
@@ -26,6 +27,7 @@ router.put("/admin/:quizId/publish", publishAdminQuiz);
 
 router.get("/student", getStudentQuizzes);
 router.get("/student/:quizId", getStudentQuiz);
+router.put("/student/:quizId/progress", saveStudentQuizProgress);
 router.post("/student/:quizId/submit", submitStudentQuiz);
 
 export default router;

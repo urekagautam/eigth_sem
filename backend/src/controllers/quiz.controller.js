@@ -7,6 +7,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
 const optionLabels = ["A", "B", "C", "D"];
+const NEPAL_TIME_OFFSET_MINUTES = 5 * 60 + 45;
 
 const ensureRole = (req, role) => {
   if (req.user?.role !== role) {
@@ -27,12 +28,102 @@ const makeEmptyQuestions = () =>
     correctOption: "",
   }));
 
+const padDatePart = (value) => String(value).padStart(2, "0");
+
+const parseNepalDateTime = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+
+  const match = String(value).match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/,
+  );
+  if (!match) return new Date(value);
+
+  const [, year, month, day, hour, minute, second = "0"] = match;
+  return new Date(
+    Date.UTC(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second),
+    ) -
+      NEPAL_TIME_OFFSET_MINUTES * 60 * 1000,
+  );
+};
+
 const normalizeDateTime = (value) => {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toISOString().slice(0, 16);
+  const nepalDate = new Date(date.getTime() + NEPAL_TIME_OFFSET_MINUTES * 60 * 1000);
+  return `${nepalDate.getUTCFullYear()}-${padDatePart(
+    nepalDate.getUTCMonth() + 1,
+  )}-${padDatePart(nepalDate.getUTCDate())}T${padDatePart(
+    nepalDate.getUTCHours(),
+  )}:${padDatePart(nepalDate.getUTCMinutes())}`;
 };
+
+const isQuizOpenNow = (quiz, now = new Date()) => {
+  const startsAt = quiz.availableFrom ? new Date(quiz.availableFrom) : null;
+  const endsAt = quiz.availableUntil ? new Date(quiz.availableUntil) : null;
+  return (
+    quiz.status === "published" &&
+    (!startsAt || startsAt <= now) &&
+    (!endsAt || endsAt >= now)
+  );
+};
+
+const isQuizClosedNow = (quiz, now = new Date()) =>
+  quiz.status === "published" &&
+  quiz.availableUntil &&
+  new Date(quiz.availableUntil) < now;
+
+const buildValidAnswers = (quiz, answers = []) => {
+  const questionIds = new Set(quiz.questions.map((question) => question._id.toString()));
+  const answerByQuestion = new Map();
+
+  (Array.isArray(answers) ? answers : []).forEach((answer) => {
+    const questionId = String(answer.questionId || "");
+    if (questionIds.has(questionId) && optionLabels.includes(answer.selectedOption)) {
+      answerByQuestion.set(questionId, {
+        questionId,
+        selectedOption: answer.selectedOption,
+      });
+    }
+  });
+
+  return Array.from(answerByQuestion.values());
+};
+
+const scoreAnswers = (quiz, answers = []) => {
+  const answerByQuestion = new Map(
+    answers.map((answer) => [String(answer.questionId), answer.selectedOption]),
+  );
+
+  return quiz.questions.reduce((total, question) => {
+    return (
+      total +
+      (answerByQuestion.get(question._id.toString()) === question.correctOption ? 1 : 0)
+    );
+  }, 0);
+};
+
+const finalizeSubmission = async (quiz, submission) => {
+  if (!submission || submission.status === "submitted") return submission;
+
+  submission.obtainedMarks = scoreAnswers(quiz, submission.answers);
+  submission.fullMarks = quiz.questions.length;
+  submission.status = "submitted";
+  submission.submittedAt = submission.submittedAt || new Date();
+  await submission.save();
+  return submission;
+};
+
+const isSubmittedSubmission = (submission) =>
+  Boolean(submission) &&
+  (submission.status === "submitted" || !submission.status);
 
 const getTeacherOffering = async (teacherId, classOfferingId) => {
   if (!mongoose.Types.ObjectId.isValid(classOfferingId)) {
@@ -198,16 +289,22 @@ const normalizeQuizForStudent = (quiz, submission = null) => {
   const now = new Date();
   const startsAt = quiz.availableFrom ? new Date(quiz.availableFrom) : null;
   const endsAt = quiz.availableUntil ? new Date(quiz.availableUntil) : null;
-  const isOpen =
-    quiz.status === "published" &&
-    (!startsAt || startsAt <= now) &&
-    (!endsAt || endsAt >= now);
+  const isOpen = isQuizOpenNow(quiz, now);
+  const isSubmitted = isSubmittedSubmission(submission);
   const displayStatus =
-    quiz.status === "published" && endsAt && endsAt < now
+    isSubmitted
+      ? "submitted"
+      : quiz.status === "published" && endsAt && endsAt < now
       ? "closed"
       : isOpen
         ? "open"
         : "scheduled";
+  const savedAnswers = new Map(
+    (submission?.answers || []).map((answer) => [
+      answer.questionId.toString(),
+      answer.selectedOption,
+    ]),
+  );
 
   return {
     id: quiz._id.toString(),
@@ -220,13 +317,18 @@ const normalizeQuizForStudent = (quiz, submission = null) => {
     marks: quiz.questions?.length || 10,
     isOpen,
     displayStatus,
-    hasSubmitted: Boolean(submission),
-    score: submission?.obtainedMarks,
+    hasSubmitted: isSubmitted,
+    inProgress: submission?.status === "in_progress",
+    score: isSubmitted ? submission?.obtainedMarks : null,
     submittedAt: submission?.submittedAt,
+    serverNow: normalizeDateTime(now),
+    savedAnswers: Object.fromEntries(savedAnswers),
     questions: sanitizeQuestions(quiz.questions).map((question) => ({
       id: question._id?.toString(),
       questionText: question.questionText,
       options: question.options,
+      selectedOption: savedAnswers.get(question._id?.toString()) || "",
+      correctOption: isSubmitted ? question.correctOption : undefined,
     })),
   };
 };
@@ -421,8 +523,8 @@ export const publishAdminQuiz = async (req, res, next) => {
       throw new ApiError(400, "Start and end time are required");
     }
 
-    const startsAt = new Date(availableFrom);
-    const endsAt = new Date(availableUntil);
+    const startsAt = parseNepalDateTime(availableFrom);
+    const endsAt = parseNepalDateTime(availableUntil);
     if (
       Number.isNaN(startsAt.getTime()) ||
       Number.isNaN(endsAt.getTime()) ||
@@ -449,7 +551,7 @@ export const publishAdminQuiz = async (req, res, next) => {
 
     res
       .status(200)
-      .json(new ApiResponse(200, normalizeQuizForAdmin(populated), "Quiz published"));
+      .json(new ApiResponse(200, normalizeQuizForAdmin(populated), "Quiz schedule saved"));
   } catch (error) {
     next(error);
   }
@@ -478,6 +580,13 @@ export const getStudentQuizzes = async (req, res, next) => {
     const submissionByQuiz = new Map(
       submissions.map((submission) => [submission.quizId.toString(), submission]),
     );
+
+    for (const quiz of quizzes) {
+      const submission = submissionByQuiz.get(quiz._id.toString());
+      if (submission?.status === "in_progress" && isQuizClosedNow(quiz)) {
+        await finalizeSubmission(quiz, submission);
+      }
+    }
 
     res.status(200).json(
       new ApiResponse(
@@ -514,7 +623,10 @@ export const getStudentQuiz = async (req, res, next) => {
       .populate("teacherId");
     if (!quiz) throw new ApiError(404, "Quiz not found");
 
-    const submission = await QuizSubmission.findOne({ quizId: quiz._id, studentId });
+    let submission = await QuizSubmission.findOne({ quizId: quiz._id, studentId });
+    if (submission?.status === "in_progress" && isQuizClosedNow(quiz)) {
+      submission = await finalizeSubmission(quiz, submission);
+    }
     const payload = normalizeQuizForStudent(quiz, submission);
     if (!payload.isOpen && !payload.hasSubmitted) {
       throw new ApiError(400, "Quiz is not open right now");
@@ -526,69 +638,121 @@ export const getStudentQuiz = async (req, res, next) => {
   }
 };
 
-export const submitStudentQuiz = async (req, res, next) => {
+const getStudentPublishedQuiz = async (studentId, quizId) => {
+  if (!mongoose.Types.ObjectId.isValid(quizId)) {
+    throw new ApiError(400, "Valid quiz is required");
+  }
+
+  const student = await Student.findById(studentId);
+  if (!student) throw new ApiError(404, "Student not found");
+
+  const quiz = await Quiz.findOne({
+    _id: quizId,
+    facultyId: student.facultyId,
+    level: student.current_level,
+    batch: student.admitted_batch,
+    status: "published",
+  });
+  if (!quiz) throw new ApiError(404, "Quiz not found");
+
+  return quiz;
+};
+
+export const saveStudentQuizProgress = async (req, res, next) => {
   try {
     const studentId = ensureRole(req, "student");
-    if (!mongoose.Types.ObjectId.isValid(req.params.quizId)) {
-      throw new ApiError(400, "Valid quiz is required");
-    }
+    const quiz = await getStudentPublishedQuiz(studentId, req.params.quizId);
 
-    const student = await Student.findById(studentId);
-    if (!student) throw new ApiError(404, "Student not found");
-
-    const quiz = await Quiz.findOne({
-      _id: req.params.quizId,
-      facultyId: student.facultyId,
-      level: student.current_level,
-      batch: student.admitted_batch,
-      status: "published",
-    });
-    if (!quiz) throw new ApiError(404, "Quiz not found");
-
-    const now = new Date();
-    if (
-      (quiz.availableFrom && new Date(quiz.availableFrom) > now) ||
-      (quiz.availableUntil && new Date(quiz.availableUntil) < now)
-    ) {
-      throw new ApiError(400, "Quiz time is over or has not started");
+    if (!isQuizOpenNow(quiz)) {
+      const existing = await QuizSubmission.findOne({ quizId: quiz._id, studentId });
+      if (existing?.status === "in_progress" && isQuizClosedNow(quiz)) {
+        const finalized = await finalizeSubmission(quiz, existing);
+        res.status(200).json(
+          new ApiResponse(
+            200,
+            {
+              status: finalized.status,
+              obtainedMarks: finalized.obtainedMarks,
+              fullMarks: finalized.fullMarks,
+              submittedAt: finalized.submittedAt,
+            },
+            "Quiz time ended. Saved answers were submitted.",
+          ),
+        );
+        return;
+      }
+      throw new ApiError(400, "Quiz is not open right now");
     }
 
     const existing = await QuizSubmission.findOne({ quizId: quiz._id, studentId });
-    if (existing) throw new ApiError(400, "Quiz already submitted");
-
-    const questionIds = new Set(quiz.questions.map((question) => question._id.toString()));
-    const answers = (Array.isArray(req.body.answers) ? req.body.answers : [])
-      .filter(
-        (answer) =>
-          questionIds.has(String(answer.questionId)) &&
-          optionLabels.includes(answer.selectedOption),
-      )
-      .map((answer) => ({
-        questionId: answer.questionId,
-        selectedOption: answer.selectedOption,
-      }));
-
-    if (answers.length !== quiz.questions.length) {
-      throw new ApiError(400, "Answer every question before submitting");
+    if (isSubmittedSubmission(existing)) {
+      throw new ApiError(400, "Quiz already submitted");
     }
 
-    const answerByQuestion = new Map(
-      answers.map((answer) => [String(answer.questionId), answer.selectedOption]),
+    const answers = buildValidAnswers(quiz, req.body.answers);
+    const submission = await QuizSubmission.findOneAndUpdate(
+      { quizId: quiz._id, studentId },
+      {
+        $set: {
+          answers,
+          fullMarks: quiz.questions.length,
+          status: "in_progress",
+          submittedAt: null,
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
     );
-    const obtainedMarks = quiz.questions.reduce((total, question) => {
-      return (
-        total +
-        (answerByQuestion.get(question._id.toString()) === question.correctOption ? 1 : 0)
-      );
-    }, 0);
 
-    const submission = await QuizSubmission.create({
-      quizId: quiz._id,
-      studentId,
-      answers,
-      obtainedMarks,
-      fullMarks: quiz.questions.length,
-    });
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          status: submission.status,
+          savedAnswerCount: submission.answers.length,
+          updatedAt: submission.updatedAt,
+        },
+        "Quiz progress saved",
+      ),
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const submitStudentQuiz = async (req, res, next) => {
+  try {
+    const studentId = ensureRole(req, "student");
+    const quiz = await getStudentPublishedQuiz(studentId, req.params.quizId);
+
+    const now = new Date();
+    if (quiz.availableFrom && new Date(quiz.availableFrom) > now) {
+      throw new ApiError(400, "Quiz has not started");
+    }
+
+    const existing = await QuizSubmission.findOne({ quizId: quiz._id, studentId });
+    if (isSubmittedSubmission(existing)) {
+      throw new ApiError(400, "Quiz already submitted");
+    }
+
+    const incomingAnswers = buildValidAnswers(quiz, req.body.answers);
+    const answers = incomingAnswers.length
+      ? incomingAnswers
+      : buildValidAnswers(quiz, existing?.answers || []);
+    const obtainedMarks = scoreAnswers(quiz, answers);
+
+    const submission = await QuizSubmission.findOneAndUpdate(
+      { quizId: quiz._id, studentId },
+      {
+        $set: {
+          answers,
+          obtainedMarks,
+          fullMarks: quiz.questions.length,
+          status: "submitted",
+          submittedAt: new Date(),
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
 
     res.status(201).json(
       new ApiResponse(
