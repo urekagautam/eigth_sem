@@ -39,9 +39,14 @@ const quizSubmissionSchema = new Schema(
       type: Number,
       default: 10,
     },
+    status: {
+      type: String,
+      enum: ["in_progress", "submitted"],
+      default: "submitted",
+      index: true,
+    },
     submittedAt: {
       type: Date,
-      default: Date.now,
     },
   },
   {

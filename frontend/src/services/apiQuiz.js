@@ -87,6 +87,15 @@ export const fetchStudentQuiz = async (quizId) => {
   return handleResponse(response);
 };
 
+export const saveStudentQuizProgress = async (quizId, answers) => {
+  const response = await fetch(`${QUIZ_API_URL}/student/${quizId}/progress`, {
+    method: "PUT",
+    headers: getHeaders(),
+    body: JSON.stringify({ answers }),
+  });
+  return handleResponse(response);
+};
+
 export const submitStudentQuiz = async (quizId, answers) => {
   const response = await fetch(`${QUIZ_API_URL}/student/${quizId}/submit`, {
     method: "POST",

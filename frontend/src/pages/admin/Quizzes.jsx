@@ -169,6 +169,11 @@ export default function Quizzes() {
 
   const publishQuiz = async (quizId) => {
     const schedule = scheduleByQuiz[quizId] || {};
+    if (!schedule.date || !schedule.startTime || !schedule.endTime) {
+      setNotice({ type: "error", message: "Please choose the quiz date and time." });
+      return;
+    }
+
     setPublishingId(quizId);
     setNotice({ type: "", message: "" });
     try {
@@ -176,12 +181,12 @@ export default function Quizzes() {
         availableFrom: `${schedule.date}T${schedule.startTime}`,
         availableUntil: `${schedule.date}T${schedule.endTime}`,
       });
-      setNotice({ type: "success", message: "Quiz published for students." });
+      setNotice({ type: "success", message: "Quiz schedule saved for students." });
       await loadPage();
     } catch (error) {
       setNotice({
         type: "error",
-        message: error.message || "Failed to publish quiz.",
+        message: error.message || "Failed to save quiz schedule.",
       });
     } finally {
       setPublishingId("");
@@ -191,6 +196,7 @@ export default function Quizzes() {
   const renderQuizRow = (quiz) => {
     const schedule = scheduleByQuiz[quiz.id] || {};
     const status = quiz.displayStatus || quiz.status;
+    const isPublished = quiz.status === "published";
 
     return (
       <div key={quiz.id} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
@@ -263,7 +269,11 @@ export default function Quizzes() {
                 disabled={publishingId === quiz.id}
                 className="w-full whitespace-nowrap"
               >
-                {publishingId === quiz.id ? "Publishing" : "Publish"}
+                {publishingId === quiz.id
+                  ? "Saving"
+                  : isPublished
+                    ? "Update time"
+                    : "Publish"}
               </Button>
             </div>
           </div>
