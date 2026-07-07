@@ -26,9 +26,10 @@ const formatGpa = (value) => (value == null ? "--" : Number(value).toFixed(2));
 const pendingText = "Pending";
 
 const statusClass = (status) => {
-  if (status === "Passed") return "bg-green-50 text-green-700 border-green-100";
-  if (status === "Failed") return "bg-red-50 text-red-700 border-red-100";
-  if (status === "Incomplete") return "bg-yellow-50 text-yellow-800 border-yellow-100";
+  const normalized = String(status || "").toLowerCase();
+  if (normalized === "passed") return "bg-green-50 text-green-700 border-green-100";
+  if (normalized === "failed" || normalized === "absent") return "bg-red-50 text-red-700 border-red-100";
+  if (normalized === "incomplete") return "bg-yellow-50 text-yellow-800 border-yellow-100";
   return "bg-gray-50 text-gray-600 border-gray-100";
 };
 
@@ -520,7 +521,7 @@ export default function StudentPerformance() {
                   <tr
                     key={row.student._id}
                     className={`group ${
-                      row.failed
+                      row.failed || String(row.status).toLowerCase() === "absent"
                         ? "bg-red-50"
                         : row.complete
                           ? "bg-white"
@@ -571,10 +572,14 @@ export default function StudentPerformance() {
                       {row.complete ? formatGpa(row.gpa) : pendingText}
                     </td>
                     <td className="border-t border-gray-100 px-4 py-3">
-                      {row.complete ? formatGpa(row.cumulativeGpa) : pendingText}
+                      {row.complete || String(row.status).toLowerCase() === "absent"
+                        ? formatGpa(row.cumulativeGpa)
+                        : pendingText}
                     </td>
                     <td className="border-t border-gray-100 px-4 py-3">
-                      {row.complete ? row.rank : pendingText}
+                      {row.complete || String(row.status).toLowerCase() === "absent"
+                        ? row.rank
+                        : pendingText}
                     </td>
                     <td className="border-t border-gray-100 px-4 py-3">
                       <span

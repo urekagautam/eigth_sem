@@ -44,13 +44,14 @@ function StatCard({ icon: Icon, label, value, detail }) {
 }
 
 function statusClass(status) {
-  if (status === "present" || status === "submitted" || status === "Passed") {
+  const normalized = String(status || "").toLowerCase();
+  if (normalized === "present" || normalized === "submitted" || normalized === "passed") {
     return "border-green-100 bg-green-50 text-green-700";
   }
-  if (status === "absent" || status === "Failed") {
+  if (normalized === "absent" || normalized === "failed") {
     return "border-red-100 bg-red-50 text-red-700";
   }
-  if (status === "Incomplete" || status === "pending") {
+  if (normalized === "incomplete" || normalized === "pending") {
     return "border-yellow-100 bg-yellow-50 text-yellow-800";
   }
   return "border-gray-100 bg-gray-50 text-gray-600";

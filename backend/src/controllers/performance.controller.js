@@ -10,6 +10,10 @@ import { Quiz } from "../models/quiz.model.js";
 import { QuizSubmission } from "../models/quizSubmission.model.js";
 import { Student } from "../models/student.model.js";
 import { Subject } from "../models/subject.model.js";
+import {
+  buildLabelledPerformanceDataset,
+  getStudentPerformancePrediction,
+} from "../ml/performancePrediction.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
@@ -138,7 +142,7 @@ const getExamSubjects = (exam, subjectsById, fallbackSubjects) => {
   return fromRoutine.length ? fromRoutine : fallbackSubjects;
 };
 
-const calculateStudentExamResult = ({ student, exam, subjects, markMap }) => {
+const calculateStudentExamResult = ({ student, exam, subjects, markMap, hasAbsentAttendance = false }) => {
   const fullMarksPerSubject = Number(exam?.fullMarks) || 100;
   const subjectResults = subjects.map((subject) => {
     const mark = markMap.get(`${exam._id.toString()}-${student._id.toString()}-${subject._id}`);
@@ -173,7 +177,7 @@ const calculateStudentExamResult = ({ student, exam, subjects, markMap }) => {
     ? enteredSubjects.reduce((sum, item) => sum + item.gradePoint, 0) /
       enteredSubjects.length
     : null;
-  const failed = enteredSubjects.some((item) => item.passed === false);
+  const failed = enteredSubjects.some((item) => item.passed === false) || hasAbsentAttendance;
 
   return {
     student: normalizeStudent(student, exam.facultyId),
@@ -185,13 +189,15 @@ const calculateStudentExamResult = ({ student, exam, subjects, markMap }) => {
     missingSubjectCount: subjectResults.length - enteredSubjects.length,
     percentage: round(percentage, 1),
     gpa: round(gpa),
-    status: !enteredSubjects.length
-      ? "No marks"
-      : !complete
-        ? "Incomplete"
-        : failed
-          ? "Failed"
-          : "Passed",
+    status: hasAbsentAttendance
+      ? "Absent"
+      : !enteredSubjects.length
+        ? "No marks"
+        : !complete
+          ? "Incomplete"
+          : failed
+            ? "Failed"
+            : "Passed",
     complete,
     failed,
   };
@@ -214,14 +220,14 @@ const calculateCumulativeGpa = ({ student, exams, subjectsById, fallbackSubjects
 
 const applyRanks = (rows) => {
   const rankedRows = rows
-    .filter((row) => row.complete && row.gpa != null)
-    .sort((a, b) => b.gpa - a.gpa || b.total - a.total);
+    .filter((row) => row.complete && row.gpa != null || String(row.status).toLowerCase() === "absent")
+    .sort((a, b) => (b.gpa ?? 0) - (a.gpa ?? 0) || b.total - a.total);
 
   let rank = 0;
   let previousKey = "";
   const rankMap = new Map();
   rankedRows.forEach((row, index) => {
-    const key = `${row.gpa}-${row.total}`;
+    const key = `${row.gpa ?? 0}-${row.total}`;
     if (key !== previousKey) rank = index + 1;
     previousKey = key;
     rankMap.set(row.student._id, rank);
@@ -304,6 +310,18 @@ export const getPerformanceLedger = async (req, res, next) => {
     const studentIds = students.map((student) => student._id);
     const markMap = await buildMarkMap(examIds, studentIds);
 
+    const examAttendanceRecords = currentExam
+      ? await ExamAttendance.find({
+          examId: currentExam._id,
+          studentId: { $in: studentIds },
+        }).select("studentId status")
+      : [];
+    const absentStudentIds = new Set(
+      examAttendanceRecords
+        .filter((record) => record.status === "absent")
+        .map((record) => record.studentId.toString()),
+    );
+
     const rows = currentExam
       ? students.map((student) => {
           const result = calculateStudentExamResult({
@@ -311,6 +329,7 @@ export const getPerformanceLedger = async (req, res, next) => {
             exam: currentExam,
             subjects: examSubjects,
             markMap,
+            hasAbsentAttendance: absentStudentIds.has(student._id.toString()),
           });
           const cumulative = calculateCumulativeGpa({
             student,
@@ -444,12 +463,23 @@ export const getStudentPerformanceDetail = async (req, res, next) => {
       [student._id],
     );
 
+    const examAttendanceSummaryRecords = await ExamAttendance.find({
+      studentId: student._id,
+      ...classFilter,
+    }).select("examId status");
+    const absencesByExam = new Set(
+      examAttendanceSummaryRecords
+        .filter((record) => record.status === "absent")
+        .map((record) => record.examId.toString()),
+    );
+
     const examResults = exams.map((exam) => {
       const result = calculateStudentExamResult({
         student,
         exam,
         subjects: getExamSubjects(exam, subjectsById, normalizedSubjects),
         markMap,
+        hasAbsentAttendance: absencesByExam.has(exam._id.toString()),
       });
       return {
         exam: normalizeExam(exam),
@@ -550,6 +580,7 @@ export const getStudentPerformanceDetail = async (req, res, next) => {
       fallbackSubjects: normalizedSubjects,
       markMap,
     });
+    const prediction = await getStudentPerformancePrediction(student._id);
 
     res.status(200).json(
       new ApiResponse(
@@ -612,8 +643,28 @@ export const getStudentPerformanceDetail = async (req, res, next) => {
             cumulativeGpa: cumulative.cumulativeGpa,
             termCount: cumulative.termCount,
           },
+          prediction,
         },
         "Student performance detail retrieved successfully",
+      ),
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getPerformanceDataset = async (req, res, next) => {
+  try {
+    const rows = await buildLabelledPerformanceDataset(req.query);
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          generatedAt: new Date(),
+          rowCount: rows.length,
+          rows,
+        },
+        "Labelled performance dataset generated successfully",
       ),
     );
   } catch (error) {
