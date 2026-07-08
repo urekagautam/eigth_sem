@@ -17,6 +17,7 @@ const normalizeExam = (exam) => ({
   title: exam.title,
   createdAt: normalizeDate(exam.createdAt),
   fullMarks: exam.fullMarks,
+  passMarks: exam.passMarks,
   published: exam.published,
   items: (exam.items || []).map((item) => {
     const subject = item.subjectId;
@@ -121,7 +122,7 @@ export const getExamSchedules = async (req, res, next) => {
 
 export const createExamSchedule = async (req, res, next) => {
   try {
-    const { title, facultyId, level, batch, fullMarks, items } = req.body;
+    const { title, facultyId, level, batch, fullMarks, passMarks, items } = req.body;
 
     if (!title?.trim() || !facultyId || !level) {
       throw new ApiError(400, "Exam title, faculty, and level are required");
@@ -200,12 +201,22 @@ export const createExamSchedule = async (req, res, next) => {
       };
     });
 
+    const fullMarksValue = Number(fullMarks) || 100;
+    const passMarksValue = Number(passMarks ?? Math.ceil(fullMarksValue * 0.4));
+    if (passMarksValue < 0 || passMarksValue > fullMarksValue) {
+      throw new ApiError(
+        400,
+        "Pass marks must be between 0 and the exam full marks",
+      );
+    }
+
     const exam = await Exam.create({
       title: title.trim(),
       facultyId,
       level: selectedLevel,
       batch: selectedBatch,
-      fullMarks: Number(fullMarks) || 100,
+      fullMarks: fullMarksValue,
+      passMarks: passMarksValue,
       items: examItems,
     });
 
@@ -263,7 +274,7 @@ const buildExamItems = async ({ items, facultyId, level }) => {
 export const updateExamSchedule = async (req, res, next) => {
   try {
     const { examId } = req.params;
-    const { title, fullMarks, items } = req.body;
+    const { title, fullMarks, passMarks, items } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(examId)) {
       throw new ApiError(400, "Valid exam is required");
@@ -278,8 +289,18 @@ export const updateExamSchedule = async (req, res, next) => {
     const exam = await Exam.findById(examId);
     if (!exam) throw new ApiError(404, "Exam not found");
 
+    const fullMarksValue = Number(fullMarks) || 100;
+    const passMarksValue = Number(passMarks ?? Math.ceil(fullMarksValue * 0.4));
+    if (passMarksValue < 0 || passMarksValue > fullMarksValue) {
+      throw new ApiError(
+        400,
+        "Pass marks must be between 0 and the exam full marks",
+      );
+    }
+
     exam.title = title.trim();
-    exam.fullMarks = Number(fullMarks) || 100;
+    exam.fullMarks = fullMarksValue;
+    exam.passMarks = passMarksValue;
     exam.items = await buildExamItems({
       items,
       facultyId: exam.facultyId,

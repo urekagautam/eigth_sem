@@ -28,9 +28,20 @@ const pendingText = "Pending";
 const statusClass = (status) => {
   const normalized = String(status || "").toLowerCase();
   if (normalized === "passed") return "bg-green-50 text-green-700 border-green-100";
-  if (normalized === "failed" || normalized === "absent") return "bg-red-50 text-red-700 border-red-100";
+  if (normalized === "absent") return "bg-yellow-50 text-yellow-800 border-yellow-100";
+  if (normalized === "failed") return "bg-red-50 text-red-700 border-red-100";
   if (normalized === "incomplete") return "bg-yellow-50 text-yellow-800 border-yellow-100";
   return "bg-gray-50 text-gray-600 border-gray-100";
+};
+
+const subjectCellClass = (subjectResult) => {
+  if (subjectResult.obtainedMarks == null) {
+    return "bg-yellow-50 text-yellow-900";
+  }
+  if (subjectResult.passed) {
+    return "bg-emerald-50 text-emerald-800";
+  }
+  return "bg-red-50 text-red-700";
 };
 
 export default function StudentPerformance() {
@@ -488,14 +499,14 @@ export default function StudentPerformance() {
       ) : selectedBatch && currentExam && subjects.length > 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
           <div className="ledger-scroll overflow-x-auto">
-            <table className="min-w-[980px] border-separate border-spacing-0 text-left text-sm text-slate-700">
+            <table className="min-w-245 border-separate border-spacing-0 text-left text-sm text-slate-700">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="sticky left-0 z-20 min-w-[240px] bg-slate-50 px-4 py-3 font-semibold">
+                <th className="sticky left-0 z-20 min-w-60 bg-slate-50 px-4 py-3 font-semibold">
                   Student
                 </th>
                 {subjects.map((subject) => (
-                  <th key={subject._id} className="min-w-[150px] px-4 py-3 font-semibold">
+                  <th key={subject._id} className="min-w-37.5 px-4 py-3 font-semibold">
                     {subject.code ? `${subject.code} - ${subject.name}` : subject.name}
                   </th>
                 ))}
@@ -521,14 +532,16 @@ export default function StudentPerformance() {
                   <tr
                     key={row.student._id}
                     className={`group ${
-                      row.failed || String(row.status).toLowerCase() === "absent"
-                        ? "bg-red-50"
-                        : row.complete
-                          ? "bg-white"
-                          : "bg-amber-50/35"
+                      String(row.status).toLowerCase() === "absent"
+                        ? "bg-yellow-50"
+                        : row.failed
+                          ? "bg-red-50"
+                          : row.complete
+                            ? "bg-white"
+                            : "bg-amber-50/35"
                     } hover:bg-blue-50/50`}
                   >
-                    <td className="sticky left-0 z-10 min-w-[240px] border-t border-gray-100 bg-inherit px-4 py-3 text-gray-900">
+                    <td className="sticky left-0 z-10 min-w-60 border-t border-gray-100 bg-inherit px-4 py-3 text-gray-900">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="font-semibold">{row.student.name}</p>
@@ -549,20 +562,28 @@ export default function StudentPerformance() {
                     {row.subjectResults.map((subjectResult) => (
                       <td
                         key={subjectResult.subjectId}
-                        className="border-t border-gray-100 px-4 py-3"
+                        className={`border-t border-gray-100 px-4 py-3 ${subjectCellClass(subjectResult)}`}
                       >
-                        <span className="font-semibold">
-                          {formatMark(subjectResult.obtainedMarks)}
-                        </span>
-                        {subjectResult.grade ? (
-                          <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                            {subjectResult.grade}
+                        <div className="flex flex-col gap-1">
+                          <span className="font-semibold">
+                            {row.status === "Absent" && subjectResult.obtainedMarks == null
+                              ? "Absent"
+                              : formatMark(subjectResult.obtainedMarks)}
                           </span>
-                        ) : (
-                          <span className="ml-2 text-xs font-medium text-gray-400">
-                            --
-                          </span>
-                        )}
+                          {subjectResult.grade ? (
+                            <span className="inline-flex rounded-full bg-white/70 px-2 py-0.5 text-xs font-medium text-slate-600">
+                              {subjectResult.grade}
+                            </span>
+                          ) : subjectResult.obtainedMarks != null ? (
+                            <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+                              Failed
+                            </span>
+                          ) : (
+                            <span className="text-xs font-medium text-gray-400">
+                              --
+                            </span>
+                          )}
+                        </div>
                       </td>
                     ))}
                     <td className="border-t border-gray-100 px-4 py-3 font-semibold">

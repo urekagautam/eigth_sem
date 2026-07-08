@@ -93,6 +93,7 @@ const normalizeExam = (exam, subjectId) => {
     id: exam._id.toString(),
     title: exam.title,
     fullMarks: exam.fullMarks,
+    passMarks: exam.passMarks,
     published: exam.published,
     date: item?.examDate ? item.examDate.toISOString().slice(0, 10) : "",
     time: item?.examTime || "",

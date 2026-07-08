@@ -5,6 +5,8 @@ import {
   GraduationCap,
   Info,
   RefreshCw,
+  Search,
+  ShieldCheck,
   XCircle,
 } from "lucide-react";
 import Button from "../../components/Button";
@@ -39,6 +41,7 @@ export default function Attendance() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
+  const [summarySearch, setSummarySearch] = useState("");
 
   const selectedAssignment = assignments.find(
     (assignment) => assignment.classOfferingId === selectedClassOfferingId,
@@ -136,7 +139,15 @@ export default function Attendance() {
   const dayName = selectedDateObj.toLocaleDateString("en-US", {
     weekday: "long",
   });
-  const isTodayHoliday = isWeekend(selectedDate);
+  const isSelectedDateWeekend = isWeekend(selectedDate);
+  const isFutureDate = new Date(`${selectedDate}T00:00:00`) > new Date(`${today()}T00:00:00`);
+  const isExamDay = useMemo(
+    () =>
+      (classData?.examSessions || []).some(
+        (session) => session.date === selectedDate,
+      ),
+    [classData?.examSessions, selectedDate],
+  );
 
   const students = classData?.students || [];
   const summaryByStudent = useMemo(() => {
@@ -144,6 +155,66 @@ export default function Attendance() {
     (classData?.summary || []).forEach((item) => map.set(item.studentId, item));
     return map;
   }, [classData]);
+
+  const attendanceRanking = useMemo(() => {
+    const entries = students.map((student) => {
+      const summary = summaryByStudent.get(student._id) || {
+        present: 0,
+        absent: 0,
+        percentage: 0,
+      };
+      const total = Number(summary.present || 0) + Number(summary.absent || 0);
+      const percentage =
+        typeof summary.percentage === "number"
+          ? summary.percentage
+          : total > 0
+            ? Math.round((Number(summary.present || 0) / total) * 100)
+            : 0;
+
+      return {
+        student,
+        summary,
+        percentage,
+        total,
+      };
+    });
+
+    const sortedByAttendance = [...entries].sort((a, b) => {
+      if (b.percentage !== a.percentage) return b.percentage - a.percentage;
+      if ((b.summary.present || 0) !== (a.summary.present || 0)) {
+        return (b.summary.present || 0) - (a.summary.present || 0);
+      }
+      return (a.student.name || "").localeCompare(b.student.name || "");
+    });
+
+    const topStudents = sortedByAttendance.slice(0, 3).map((entry, index) => ({
+      ...entry,
+      rank: index + 1,
+    }));
+
+    const bottomStudents = [...sortedByAttendance]
+      .reverse()
+      .slice(0, 3)
+      .map((entry, index) => ({
+        ...entry,
+        rank: index + 1,
+      }));
+
+    return { topStudents, bottomStudents };
+  }, [students, summaryByStudent]);
+
+  const filteredSummaryStudents = useMemo(() => {
+    const query = summarySearch.trim().toLowerCase();
+    if (!query) return students;
+
+    return students.filter((student) =>
+      (student.name || "").toLowerCase().includes(query),
+    );
+  }, [students, summarySearch]);
+
+  const displayedSummaryStudents = summarySearch
+    ? filteredSummaryStudents
+    : filteredSummaryStudents.slice(0, 4);
 
   const presentCount = Object.values(attendanceChecks).filter(Boolean).length;
 
@@ -243,7 +314,7 @@ export default function Attendance() {
             </div>
             <div>
               <label className={labelClass}>Subjects in this class</label>
-              <div className="min-h-[48px] rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+              <div className="min-h-12 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
                 {selectedAssignment?.subjects?.length
                   ? selectedAssignment.subjects
                       .map((subject) =>
@@ -301,17 +372,24 @@ export default function Attendance() {
                 </div>
               </div>
               <div className="flex items-end">
-                {isTodayHoliday ? (
+                {isExamDay ? (
+                  <div className="w-full rounded-lg border border-green-200 bg-green-50 p-3">
+                    <p className="flex items-center gap-2 text-sm font-medium text-green-900">
+                      <ShieldCheck className="h-4 w-4" />
+                      Exam day selected - attendance is managed by admin
+                    </p>
+                  </div>
+                ) : isSelectedDateWeekend ? (
                   <div className="w-full rounded-lg border border-amber-200 bg-amber-50 p-3">
                     <p className="flex items-center gap-2 text-sm font-medium text-amber-900">
                       <CalendarX className="h-4 w-4" />
-                      Weekend - attendance not required
+                      Weekend selected - you can still update saved attendance if needed
                     </p>
                   </div>
                 ) : (
                   <div className="w-full rounded-lg border border-green-200 bg-green-50 p-3">
                     <p className="text-sm font-medium text-green-900">
-                      Regular class day - mark attendance
+                      Regular class day - mark or update attendance
                     </p>
                   </div>
                 )}
@@ -319,17 +397,33 @@ export default function Attendance() {
             </div>
           </div>
 
-          {!isTodayHoliday && (
+          {!isFutureDate && (
             <div className="space-y-4">
-              <div className="flex gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+              <div
+                className={`flex gap-3 rounded-lg px-4 py-3 text-sm ${
+                  isExamDay
+                    ? "border border-green-200 bg-green-50 text-green-900"
+                    : "border border-blue-200 bg-blue-50 text-blue-900"
+                }`}
+              >
                 <Info className="h-5 w-5 shrink-0" />
                 <p>
-                  Use "Mark all present" first, then uncheck absent students.
-                  Saving updates this date for the selected class.
+                  {isExamDay
+                    ? "This is an exam day, so attendance is marked by the admin and cannot be edited by teachers."
+                    : "Select a date and update the attendance list as needed."}
                 </p>
               </div>
 
-              {loadingClass ? (
+              {isExamDay ? (
+                <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-900">
+                  <p className="font-medium">
+                    Attendance for this date is locked for teachers.
+                  </p>
+                  <p className="mt-1">
+                    Any attendance on exam days is handled from the admin side.
+                  </p>
+                </div>
+              ) : loadingClass ? (
                 <div className="rounded-lg border border-gray-200 bg-white py-12 text-center text-gray-600">
                   <RefreshCw className="mx-auto mb-3 h-6 w-6 animate-spin text-blue-600" />
                   Loading attendance...
@@ -459,45 +553,139 @@ export default function Attendance() {
               <h3 className="mb-4 font-bold text-gray-900">
                 Class attendance summary
               </h3>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {students.map((student) => {
-                  const summary = summaryByStudent.get(student._id) || {
-                    present: 0,
-                    absent: 0,
-                    percentage: 0,
-                  };
-                  return (
-                    <div
-                      key={student._id}
-                      className="rounded-lg border border-gray-200 bg-gray-50 p-4"
-                    >
-                      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
-                        {student.name}
-                      </p>
-                      <div className="space-y-1 text-sm">
-                        <p className="text-gray-700">
-                          Present:{" "}
-                          <span className="font-semibold text-green-700">
-                            {summary.present}
+
+              <div className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-green-900">
+                      Top 3 most attending
+                    </h4>
+                    <span className="text-xs font-medium uppercase tracking-wide text-green-700">
+                      Best attendance
+                    </span>
+                  </div>
+                  <ul className="space-y-2">
+                    {attendanceRanking.topStudents.map((entry) => (
+                      <li
+                        key={entry.student._id}
+                        className="flex items-center justify-between rounded-md bg-white/70 px-3 py-2"
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-green-600 text-xs font-semibold text-white">
+                            {entry.rank}
                           </span>
-                        </p>
-                        <p className="text-gray-700">
-                          Absent:{" "}
-                          <span className="font-semibold text-red-700">
-                            {summary.absent}
+                          <span className="font-medium text-gray-900">
+                            {entry.student.name}
                           </span>
-                        </p>
-                        <p className="text-gray-700">
-                          %:{" "}
-                          <span className="font-semibold">
-                            {summary.percentage}%
+                        </span>
+                        <span className="text-sm font-semibold text-green-700">
+                          {entry.percentage}%
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-red-900">
+                      Bottom 3 least attending
+                    </h4>
+                    <span className="text-xs font-medium uppercase tracking-wide text-red-700">
+                      Needs attention
+                    </span>
+                  </div>
+                  <ul className="space-y-2">
+                    {attendanceRanking.bottomStudents.map((entry) => (
+                      <li
+                        key={`${entry.student._id}-${entry.rank}`}
+                        className="flex items-center justify-between rounded-md bg-white/70 px-3 py-2"
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-xs font-semibold text-white">
+                            {entry.rank}
                           </span>
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
+                          <span className="font-medium text-gray-900">
+                            {entry.student.name}
+                          </span>
+                        </span>
+                        <span className="text-sm font-semibold text-red-700">
+                          {entry.percentage}%
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
+
+              <div className="mb-4 w-full max-w-[50%]">
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Search student
+                </label>
+                <div className="flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-200">
+                  <Search className="mr-2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={summarySearch}
+                    onChange={(event) => setSummarySearch(event.target.value)}
+                    placeholder="Search student"
+                    className="w-full border-none bg-transparent text-sm outline-none"
+                  />
+                </div>
+              </div>
+
+              {!summarySearch && filteredSummaryStudents.length > 4 && (
+                <p className="mb-4 text-sm text-gray-500">
+                  Showing the first 4 students. Search for a specific student to
+                  view their full attendance stats.
+                </p>
+              )}
+
+              {displayedSummaryStudents.length === 0 ? (
+                <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                  No student found for "{summarySearch}".
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  {displayedSummaryStudents.map((student) => {
+                    const summary = summaryByStudent.get(student._id) || {
+                      present: 0,
+                      absent: 0,
+                      percentage: 0,
+                    };
+                    return (
+                      <div
+                        key={student._id}
+                        className="rounded-lg border border-gray-200 bg-gray-50 p-4"
+                      >
+                        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+                          {student.name}
+                        </p>
+                        <div className="space-y-1 text-sm">
+                          <p className="text-gray-700">
+                            Present: {" "}
+                            <span className="font-semibold text-green-700">
+                              {summary.present}
+                            </span>
+                          </p>
+                          <p className="text-gray-700">
+                            Absent: {" "}
+                            <span className="font-semibold text-red-700">
+                              {summary.absent}
+                            </span>
+                          </p>
+                          <p className="text-gray-700">
+                            %: {" "}
+                            <span className="font-semibold">
+                              {summary.percentage}%
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </>

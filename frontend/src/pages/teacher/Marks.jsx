@@ -150,6 +150,30 @@ export default function Marks() {
     [assignments],
   );
 
+  const getMarkStatus = (studentId) => {
+    if (absentStudentIds.has(studentId)) return "absent";
+    const record = marksByStudent.get(studentId);
+    if (!record) return "pending";
+    const obtained = Number(record.obtainedMarks);
+    const passMarks = Number(currentExam?.passMarks ?? currentExam?.fullMarks ?? 0);
+    return obtained >= passMarks ? "passed" : "failed";
+  };
+
+  const rowClass = (studentId) => {
+    const status = getMarkStatus(studentId);
+    if (status === "absent") return "bg-yellow-50";
+    if (status === "failed") return "bg-red-50";
+    return "bg-white";
+  };
+
+  const markCellClass = (studentId) => {
+    const status = getMarkStatus(studentId);
+    if (status === "absent") return "rounded-full bg-yellow-100 px-3 py-1 text-xs font-semibold text-yellow-800";
+    if (status === "failed") return "rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700";
+    if (status === "passed") return "rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800";
+    return "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700";
+  };
+
   const handleMarkChange = (studentId, value) => {
     if (isPublished || absentStudentIds.has(studentId)) return;
     const cleaned = value.replace(/[^0-9.]/g, "");
@@ -250,6 +274,25 @@ export default function Marks() {
       lowest: Math.min(...marks),
     };
   }, [marksByStudent]);
+
+  const scorerLists = useMemo(() => {
+    const entries = students
+      .map((student) => ({
+        student,
+        marks: marksByStudent.has(student._id)
+          ? Number(marksByStudent.get(student._id).obtainedMarks)
+          : null,
+      }))
+      .filter((item) => item.marks != null && !Number.isNaN(item.marks));
+
+    const sortedHigh = [...entries].sort((a, b) => b.marks - a.marks);
+    const sortedLow = [...entries].sort((a, b) => a.marks - b.marks);
+
+    return {
+      top: sortedHigh.slice(0, 3),
+      bottom: sortedLow.slice(0, 3),
+    };
+  }, [students, marksByStudent]);
 
   return (
     <div className="space-y-8">
@@ -360,7 +403,7 @@ export default function Marks() {
             <div>
               <h2 className="text-lg font-bold text-gray-900">Marks entry</h2>
               <p className="text-sm text-gray-600">
-                {currentExam?.title} - Full marks {currentExam?.fullMarks ?? 100}
+                {currentExam?.title} - Full marks {currentExam?.fullMarks ?? 100} · Pass marks {currentExam?.passMarks ?? currentExam?.fullMarks ?? 100}
               </p>
             </div>
             <Button
@@ -381,7 +424,7 @@ export default function Marks() {
 
           <div className="mt-6 overflow-hidden rounded-lg border border-gray-200">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-left text-sm">
+              <table className="w-full min-w-180 text-left text-sm">
                 <thead className="bg-gray-50 text-gray-700">
                   <tr>
                     <th className="px-4 py-3 font-semibold">Student</th>
@@ -413,7 +456,7 @@ export default function Marks() {
                       return (
                         <tr
                           key={student._id}
-                          className="border-t border-gray-100"
+                          className={`border-t border-gray-100 ${rowClass(student._id)}`}
                         >
                           <td className="px-4 py-3 font-medium text-gray-900">
                             {student.name}
@@ -426,25 +469,36 @@ export default function Marks() {
                           </td>
                           <td className="px-4 py-3">
                             {wasAbsent ? (
-                              <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
+                              <span className={markCellClass(student._id)}>
                                 Absent
                               </span>
                             ) : isPublished ? (
-                              <span>{record?.obtainedMarks ?? "--"}</span>
+                              <span className={markCellClass(student._id)}>
+                                {record?.obtainedMarks ?? "--"}
+                              </span>
                             ) : (
-                              <input
-                                type="number"
-                                min="0"
-                                max={currentExam?.fullMarks ?? 100}
-                                value={value}
-                                onChange={(event) =>
-                                  handleMarkChange(
-                                    student._id,
-                                    event.target.value,
-                                  )
-                                }
-                                className="w-24 rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                              />
+                              <div className="space-y-2">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={currentExam?.fullMarks ?? 100}
+                                  value={value}
+                                  onChange={(event) =>
+                                    handleMarkChange(
+                                      student._id,
+                                      event.target.value,
+                                    )
+                                  }
+                                  className="w-24 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                />
+                                {record && !wasAbsent && (
+                                  <span className={markCellClass(student._id)}>
+                                    {getMarkStatus(student._id) === "passed"
+                                      ? "Passed"
+                                      : "Failed"}
+                                  </span>
+                                )}
+                              </div>
                             )}
                           </td>
                           <td className="px-4 py-3">
@@ -494,6 +548,72 @@ export default function Marks() {
                   </p>
                 </div>
               ))}
+            </div>
+          )}
+
+          {scorerLists.top.length > 0 && (
+            <div className="mt-6 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-sm font-semibold text-green-900">
+                    Top scorers
+                  </p>
+                  <span className="text-xs font-medium uppercase tracking-wide text-green-700">
+                    Best marks
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {scorerLists.top.map((entry, index) => (
+                    <div
+                      key={entry.student._id}
+                      className="flex items-center justify-between rounded-md bg-white/70 px-3 py-2"
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-green-600 text-xs font-semibold text-white">
+                          {index + 1}
+                        </span>
+                        <span className="text-sm font-medium text-gray-900">
+                          {entry.student.name}
+                        </span>
+                      </span>
+                      <span className="text-sm font-semibold text-green-700">
+                        {entry.marks}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-sm font-semibold text-red-900">
+                    Bottom scorers
+                  </p>
+                  <span className="text-xs font-medium uppercase tracking-wide text-red-700">
+                    Needs attention
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {scorerLists.bottom.map((entry, index) => (
+                    <div
+                      key={entry.student._id}
+                      className="flex items-center justify-between rounded-md bg-white/70 px-3 py-2"
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-xs font-semibold text-white">
+                          {index + 1}
+                        </span>
+                        <span className="text-sm font-medium text-gray-900">
+                          {entry.student.name}
+                        </span>
+                      </span>
+                      <span className="text-sm font-semibold text-red-700">
+                        {entry.marks}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>

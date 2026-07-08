@@ -142,12 +142,18 @@ const getExamSubjects = (exam, subjectsById, fallbackSubjects) => {
   return fromRoutine.length ? fromRoutine : fallbackSubjects;
 };
 
-const calculateStudentExamResult = ({ student, exam, subjects, markMap, hasAbsentAttendance = false }) => {
+const calculateStudentExamResult = ({ student, exam, subjects, markMap, absentSubjectIds = new Set() }) => {
   const fullMarksPerSubject = Number(exam?.fullMarks) || 100;
+  const passMarks = Number(exam?.passMarks ?? Math.ceil(fullMarksPerSubject * 0.4));
   const subjectResults = subjects.map((subject) => {
+    const subjectId = subject._id.toString();
+    const isAbsent = absentSubjectIds.has(subjectId);
     const mark = markMap.get(`${exam._id.toString()}-${student._id.toString()}-${subject._id}`);
-    const obtainedMarks =
-      mark?.obtained_marks == null ? null : Number(mark.obtained_marks);
+    const obtainedMarks = isAbsent
+      ? null
+      : mark?.obtained_marks == null
+        ? null
+        : Number(mark.obtained_marks);
     const percentage =
       obtainedMarks == null ? null : (obtainedMarks / fullMarksPerSubject) * 100;
     const gradeInfo = percentage == null ? null : getGrade(percentage);
@@ -162,7 +168,9 @@ const calculateStudentExamResult = ({ student, exam, subjects, markMap, hasAbsen
       grade: gradeInfo?.grade || "",
       gradePoint: gradeInfo ? gradeInfo.gradePoint : null,
       remark: gradeInfo?.remark || "Not entered",
-      passed: gradeInfo ? gradeInfo.grade !== "F" : null,
+      passed: isAbsent ? false : obtainedMarks == null ? null : obtainedMarks >= passMarks,
+      absent: isAbsent,
+      passMarks,
     };
   });
 
@@ -177,7 +185,26 @@ const calculateStudentExamResult = ({ student, exam, subjects, markMap, hasAbsen
     ? enteredSubjects.reduce((sum, item) => sum + item.gradePoint, 0) /
       enteredSubjects.length
     : null;
-  const failed = enteredSubjects.some((item) => item.passed === false) || hasAbsentAttendance;
+  const hasAbsent = subjectResults.some((item) => item.absent);
+  const hasFail = subjectResults.some((item) => item.passed === false && !item.absent);
+  const failed = hasFail || hasAbsent;
+
+  let status = "";
+  if (!enteredSubjects.length && hasAbsent) {
+    status = "Absent";
+  } else if (!enteredSubjects.length) {
+    status = "No marks";
+  } else if (!complete) {
+    status = "Incomplete";
+  } else if (hasFail && hasAbsent) {
+    status = "Failed & Absent";
+  } else if (hasAbsent) {
+    status = "Absent";
+  } else if (hasFail) {
+    status = "Failed";
+  } else {
+    status = "Passed";
+  }
 
   return {
     student: normalizeStudent(student, exam.facultyId),
@@ -189,15 +216,7 @@ const calculateStudentExamResult = ({ student, exam, subjects, markMap, hasAbsen
     missingSubjectCount: subjectResults.length - enteredSubjects.length,
     percentage: round(percentage, 1),
     gpa: round(gpa),
-    status: hasAbsentAttendance
-      ? "Absent"
-      : !enteredSubjects.length
-        ? "No marks"
-        : !complete
-          ? "Incomplete"
-          : failed
-            ? "Failed"
-            : "Passed",
+    status,
     complete,
     failed,
   };
@@ -220,7 +239,7 @@ const calculateCumulativeGpa = ({ student, exams, subjectsById, fallbackSubjects
 
 const applyRanks = (rows) => {
   const rankedRows = rows
-    .filter((row) => row.complete && row.gpa != null || String(row.status).toLowerCase() === "absent")
+    .filter((row) => row.status === "Passed" && row.complete && row.gpa != null)
     .sort((a, b) => (b.gpa ?? 0) - (a.gpa ?? 0) || b.total - a.total);
 
   let rank = 0;
@@ -233,10 +252,12 @@ const applyRanks = (rows) => {
     rankMap.set(row.student._id, rank);
   });
 
-  return rows.map((row) => ({
-    ...row,
-    rank: rankMap.get(row.student._id) || "-",
-  }));
+  return rows
+    .map((row) => ({
+      ...row,
+      rank: rankMap.get(row.student._id) || "-",
+    }))
+    .sort((a, b) => a.student.name.localeCompare(b.student.name));
 };
 
 export const getPerformanceLedger = async (req, res, next) => {
@@ -314,13 +335,18 @@ export const getPerformanceLedger = async (req, res, next) => {
       ? await ExamAttendance.find({
           examId: currentExam._id,
           studentId: { $in: studentIds },
-        }).select("studentId status")
+        }).select("studentId status examItemId subjectId")
       : [];
-    const absentStudentIds = new Set(
-      examAttendanceRecords
-        .filter((record) => record.status === "absent")
-        .map((record) => record.studentId.toString()),
-    );
+
+    const absentMap = new Map();
+    examAttendanceRecords
+      .filter((record) => record.status === "absent")
+      .forEach((record) => {
+        const studentId = record.studentId.toString();
+        const subjectId = record.subjectId?.toString();
+        if (!absentMap.has(studentId)) absentMap.set(studentId, new Set());
+        if (subjectId) absentMap.get(studentId).add(subjectId);
+      });
 
     const rows = currentExam
       ? students.map((student) => {
@@ -329,7 +355,7 @@ export const getPerformanceLedger = async (req, res, next) => {
             exam: currentExam,
             subjects: examSubjects,
             markMap,
-            hasAbsentAttendance: absentStudentIds.has(student._id.toString()),
+            absentSubjectIds: absentMap.get(student._id.toString()) || new Set(),
           });
           const cumulative = calculateCumulativeGpa({
             student,
