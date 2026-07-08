@@ -6,6 +6,7 @@ import { ClassAttendanceSession } from "../models/classAttendanceSession.model.j
 import { ClassOffering } from "../models/classOffering.model.js";
 import { Exam } from "../models/exam.model.js";
 import { ExamAttendance } from "../models/examAttendance.model.js";
+import { Faculty } from "../models/faculty.model.js";
 import { Marks } from "../models/marks.model.js";
 import { Quiz } from "../models/quiz.model.js";
 import { QuizSubmission } from "../models/quizSubmission.model.js";
@@ -31,7 +32,7 @@ const FEATURE_NAMES = [
   "completedExamCount",
 ];
 
-const MIN_RANDOM_FOREST_ROWS = 1;
+const MIN_RANDOM_FOREST_ROWS = 12;
 const DEFAULT_FEATURES = Object.fromEntries(FEATURE_NAMES.map((name) => [name, 0]));
 
 const round = (value, places = 2) => {
@@ -67,6 +68,8 @@ const examPriority = (exam, index, total) => {
   if (title.includes("first")) return 1;
   return Math.min(index + 1, Math.max(total, 1));
 };
+
+const isFinalExam = (exam) => String(exam.title || "").toLowerCase().includes("final");
 
 const mean = (values) => {
   const valid = values.filter((value) => value != null && !Number.isNaN(Number(value)));
@@ -231,14 +234,15 @@ export const buildStudentPerformanceFeatures = async ({ student, facultyId, leve
   const subjectIds = subjects.map((subject) => subject._id.toString());
   const exams = await Exam.find(classFilter).sort({ createdAt: 1 });
   exams.sort((a, b) => examDateValue(a) - examDateValue(b));
+  const featureExams = exams.filter((exam) => !isFinalExam(exam));
 
   const offerings = await ClassOffering.find(classFilter).select("_id");
   const offeringIds = offerings.map((offering) => offering._id);
   const markLookup = await buildSubjectMarkLookup({
     studentIds: [student._id],
-    examIds: exams.map((exam) => exam._id),
+    examIds: featureExams.map((exam) => exam._id),
   });
-  const examPercents = exams.map((exam) =>
+  const examPercents = featureExams.map((exam) =>
     calculateExamPercent({
       studentId: student._id.toString(),
       exam,
@@ -255,10 +259,10 @@ export const buildStudentPerformanceFeatures = async ({ student, facultyId, leve
   const examAttendance = await calculateExamAttendanceFeatures({
     studentId: student._id,
     classFilter,
-    exams,
+    exams: featureExams,
   });
   const quiz = await calculateQuizFeatures({ studentId: student._id, classFilter });
-  const marks = makeFeaturesFromExamPercents({ examPercents, exams });
+  const marks = makeFeaturesFromExamPercents({ examPercents, exams: featureExams });
 
   return {
     features: normalizeFeatures({
@@ -272,6 +276,8 @@ export const buildStudentPerformanceFeatures = async ({ student, facultyId, leve
       completedExamCount: marks.completedExamCount,
       currentLevel: Number(level),
       batch: Number(batch),
+      inputExamCount: featureExams.length,
+      excludedFinalExamCount: exams.length - featureExams.length,
     },
   };
 };
@@ -317,19 +323,24 @@ export const buildLabelledPerformanceDataset = async (filters = {}) => {
       classFilter,
       offeringIds: offerings.map((offering) => offering._id),
     });
-    const examAttendance = await calculateExamAttendanceFeatures({
-      studentId: student._id,
-      classFilter,
-      exams,
-    });
     const quiz = await calculateQuizFeatures({ studentId: student._id, classFilter });
 
-    fullExamPercents.forEach((targetPercent, targetIndex) => {
-      if (targetPercent == null) return;
+    for (let targetIndex = 0; targetIndex < fullExamPercents.length; targetIndex += 1) {
+      const targetPercent = fullExamPercents[targetIndex];
+      if (targetPercent == null || targetIndex === 0) continue;
+      const priorExams = exams.slice(0, targetIndex);
       const priorPercents = fullExamPercents.map((value, index) =>
         index < targetIndex ? value : null,
       );
-      const marks = makeFeaturesFromExamPercents({ examPercents: priorPercents, exams });
+      const examAttendance = await calculateExamAttendanceFeatures({
+        studentId: student._id,
+        classFilter,
+        exams: priorExams,
+      });
+      const marks = makeFeaturesFromExamPercents({
+        examPercents: priorPercents.slice(0, targetIndex),
+        exams: priorExams,
+      });
       const features = normalizeFeatures({
         classAttendancePercent,
         ...examAttendance,
@@ -356,7 +367,7 @@ export const buildLabelledPerformanceDataset = async (filters = {}) => {
           riskCategory: risk.label,
         },
       });
-    });
+    }
   }
 
   return rows;
@@ -553,7 +564,7 @@ export const getStudentPerformancePrediction = async (studentId) => {
     metadata,
     note: modelPrediction
       ? "Prediction is generated from labelled rows built from existing semester records."
-      : "No labelled rows are available yet, so a weighted fallback was used.",
+      : `Only ${dataset.length} labelled rows are available. Random Forest needs at least ${MIN_RANDOM_FOREST_ROWS}, so a weighted fallback was used.`,
   };
 };
 

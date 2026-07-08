@@ -26,7 +26,7 @@ try {
 
   if (!model) {
     console.log(`Only ${rows.length} labelled rows found.`);
-    console.log("At least 1 labelled row is needed to train the Random Forest model.");
+    console.log("At least 12 labelled rows are needed to train the Random Forest model.");
     process.exitCode = 1;
   } else {
     const modelPath = await saveModel(model);
