@@ -43,19 +43,6 @@ const normalizeSubject = (subject, offerings = []) => {
   };
 };
 
-const getActiveBatches = async (facultyId, level) => {
-  const students = await Student.find({
-    facultyId,
-    current_level: Number(level),
-    isActive: true,
-    academic_status: { $ne: "graduated" },
-  }).select("admitted_batch");
-
-  return Array.from(
-    new Set(students.map((student) => Number(student.admitted_batch)).filter(Boolean)),
-  );
-};
-
 export const getSubjects = async (req, res, next) => {
   try {
     const { facultyId, level, batch } = req.query;

@@ -351,28 +351,36 @@ export const getPerformanceLedger = async (req, res, next) => {
     if (!faculty) throw new ApiError(404, "Faculty not found");
 
     const selectedLevel = Number(level);
-    const activeStudentsForLevel = await Student.find({
+    const activeClassOfferings = await ClassOffering.find({
       facultyId,
-      current_level: selectedLevel,
+      level: selectedLevel,
       isActive: true,
-      academic_status: { $ne: "graduated" },
-    }).sort({ roll_no: 1, std_id: 1 });
+    }).select("batch");
 
     const activeBatches = Array.from(
       new Set(
-        activeStudentsForLevel
-          .map((student) => Number(student.admitted_batch))
+        activeClassOfferings
+          .map((offering) => Number(offering.batch))
           .filter(Boolean),
       ),
     )
       .sort((a, b) => b - a)
+      .slice(0, 1)
       .map(String);
 
-    const selectedBatch = batch || activeBatches[0] || "";
+    const requestedBatch = batch ? String(batch) : "";
+    const selectedBatch =
+      requestedBatch && activeBatches.includes(requestedBatch)
+        ? requestedBatch
+        : activeBatches[0] || "";
     const students = selectedBatch
-      ? activeStudentsForLevel.filter(
-          (student) => String(student.admitted_batch) === String(selectedBatch),
-        )
+      ? await Student.find({
+          facultyId,
+          current_level: selectedLevel,
+          admitted_batch: Number(selectedBatch),
+          isActive: true,
+          academic_status: { $ne: "graduated" },
+        }).sort({ roll_no: 1, std_id: 1 })
       : [];
 
     const subjects = await Subject.find({

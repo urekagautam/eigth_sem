@@ -13,6 +13,7 @@ import teacherMarksRoute from "./routes/teacherMarks.route.js";
 import noticeRoute from "./routes/notice.route.js";
 import attendanceRoute from "./routes/attendance.route.js";
 import quizRoute from "./routes/quiz.route.js";
+import dashboardRoute from "./routes/dashboard.route.js";
 
 dotenv.config();
 
@@ -52,6 +53,7 @@ app.use("/api/teacher/marks", teacherMarksRoute);
 app.use("/api/notices", noticeRoute);
 app.use("/api/attendance", attendanceRoute);
 app.use("/api/quizzes", quizRoute);
+app.use("/api/dashboard", dashboardRoute);
 
 app.get("/", (req, res) => {
   res.send("Server is ready");

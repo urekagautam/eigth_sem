@@ -137,7 +137,7 @@ export default function StudentPerformance() {
         });
         const data = response?.data || null;
         setLedger(data);
-        if (!selectedBatch && data?.batch) setSelectedBatch(data.batch);
+        if (data?.batch && data.batch !== selectedBatch) setSelectedBatch(data.batch);
         if (data?.currentExam?.id && data.currentExam.id !== selectedExamId) {
           setSelectedExamId(data.currentExam.id);
         }
@@ -434,22 +434,12 @@ export default function StudentPerformance() {
           </div>
 
           <div>
-            <label className={labelClass}>Batch</label>
-            <select
-              value={selectedBatch}
-              onChange={(event) => {
-                setSelectedBatch(event.target.value);
-                setSelectedExamId("");
-              }}
-              className={fieldClass}
-            >
-              <option value="">Choose batch</option>
-              {(ledger?.activeBatches || []).map((batch) => (
-                <option key={batch} value={batch}>
-                  Batch {batch}
-                </option>
-              ))}
-            </select>
+            <label className={labelClass}>Current batch</label>
+            <input
+              value={selectedBatch ? `Batch ${selectedBatch}` : "Auto selected"}
+              className={`${fieldClass} bg-gray-50 text-gray-600`}
+              readOnly
+            />
           </div>
 
           <div>

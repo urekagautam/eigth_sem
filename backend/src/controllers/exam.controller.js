@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
+import { ClassOffering } from "../models/classOffering.model.js";
 import { Exam } from "../models/exam.model.js";
 import { Faculty } from "../models/faculty.model.js";
-import { Student } from "../models/student.model.js";
 import { Subject } from "../models/subject.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
@@ -43,16 +43,15 @@ const normalizeSchedule = (facultyId, faculty, level, batch, exams) => ({
 });
 
 const getLatestActiveBatch = async (facultyId, level) => {
-  const student = await Student.findOne({
+  const offering = await ClassOffering.findOne({
     facultyId,
-    current_level: Number(level),
     isActive: true,
-    academic_status: { $ne: "graduated" },
+    level: Number(level),
   })
-    .sort({ admitted_batch: -1 })
-    .select("admitted_batch");
+    .sort({ batch: -1 })
+    .select("batch");
 
-  return student?.admitted_batch ? Number(student.admitted_batch) : null;
+  return offering?.batch ? Number(offering.batch) : null;
 };
 
 export const getExamSchedules = async (req, res, next) => {

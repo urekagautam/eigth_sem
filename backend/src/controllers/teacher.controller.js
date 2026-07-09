@@ -1,7 +1,6 @@
 import bcrypt from "bcryptjs";
 import { Teacher } from "../models/teacher.model.js";
 import { ClassOffering } from "../models/classOffering.model.js";
-import { Student } from "../models/student.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
@@ -52,17 +51,15 @@ const getActiveAssignedSubjectsByTeacher = async (teacherIds) => {
     .populate("subjectId")
     .sort({ createdAt: -1 });
 
-  const activeStudents = await Student.find({
-    isActive: true,
-    academic_status: "active",
-  }).select("facultyId current_level admitted_batch");
-
   const activeBatchMap = new Map();
   const latestActiveBatchMap = new Map();
-  activeStudents.forEach((student) => {
-    const key = `${student.facultyId?.toString()}-${student.current_level}`;
+  const activeOfferings = await ClassOffering.find({ isActive: true }).select(
+    "facultyId level batch",
+  );
+  activeOfferings.forEach((offering) => {
+    const key = `${offering.facultyId?.toString()}-${offering.level}`;
     const batches = activeBatchMap.get(key) || new Set();
-    const batch = Number(student.admitted_batch);
+    const batch = Number(offering.batch);
     batches.add(String(batch));
     activeBatchMap.set(key, batches);
 
