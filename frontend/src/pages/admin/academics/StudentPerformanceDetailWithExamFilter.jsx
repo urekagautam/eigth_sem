@@ -362,12 +362,16 @@ export default function StudentPerformanceDetail() {
                               : subject.subjectName}
                           </td>
                           <td className="px-4 py-3">
-                            {subject.obtainedMarks == null
-                              ? "--"
-                              : `${subject.obtainedMarks}/${subject.fullMarks}`}
+                            {subject.absent
+                              ? "Absent"
+                              : subject.obtainedMarks == null
+                                ? "--"
+                                : `${subject.obtainedMarks}/${subject.fullMarks}`}
                           </td>
-                          <td className="px-4 py-3">{percentText(subject.percentage)}</td>
-                          <td className="px-4 py-3">{formatValue(subject.grade)}</td>
+                          <td className="px-4 py-3">
+                            {subject.absent ? "--" : percentText(subject.percentage)}
+                          </td>
+                          <td className="px-4 py-3">{subject.absent ? "--" : formatValue(subject.grade)}</td>
                         </tr>
                       ))}
                     </tbody>

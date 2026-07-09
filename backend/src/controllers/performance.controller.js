@@ -142,6 +142,81 @@ const getExamSubjects = (exam, subjectsById, fallbackSubjects) => {
   return fromRoutine.length ? fromRoutine : fallbackSubjects;
 };
 
+export const buildAbsentSubjectIdsByStudent = (records = []) => {
+  const byStudent = new Map();
+  const statusBySubject = new Map();
+
+  records.forEach((record) => {
+    const studentId = record.studentId?.toString?.() || record.studentId;
+    const examId = record.examId?.toString?.() || record.examId;
+    const subjectId = record.subjectId?.toString?.() || record.subjectId;
+
+    if (!studentId || !examId || !subjectId) return;
+
+    const key = `${studentId}-${examId}-${subjectId}`;
+    const current = statusBySubject.get(key);
+    if (!current || record.status === "present") {
+      statusBySubject.set(key, {
+        studentId,
+        examId,
+        subjectId,
+        status: record.status,
+      });
+    }
+  });
+
+  statusBySubject.forEach((record) => {
+    if (record.status !== "absent") return;
+
+    if (!byStudent.has(record.studentId)) {
+      byStudent.set(record.studentId, new Map());
+    }
+
+    const byExam = byStudent.get(record.studentId);
+    if (!byExam.has(record.examId)) {
+      byExam.set(record.examId, new Set());
+    }
+
+    byExam.get(record.examId).add(record.subjectId);
+  });
+
+  return byStudent;
+};
+
+export const buildAbsentSubjectIdsByExam = (records = []) => {
+  const byExam = new Map();
+  const statusBySubject = new Map();
+
+  records.forEach((record) => {
+    const examId = record.examId?.toString?.() || record.examId;
+    const subjectId = record.subjectId?.toString?.() || record.subjectId;
+
+    if (!examId || !subjectId) return;
+
+    const key = `${examId}-${subjectId}`;
+    const current = statusBySubject.get(key);
+    if (!current || record.status === "present") {
+      statusBySubject.set(key, {
+        examId,
+        subjectId,
+        status: record.status,
+      });
+    }
+  });
+
+  statusBySubject.forEach((record) => {
+    if (record.status !== "absent") return;
+
+    if (!byExam.has(record.examId)) {
+      byExam.set(record.examId, new Set());
+    }
+
+    byExam.get(record.examId).add(record.subjectId);
+  });
+
+  return byExam;
+};
+
 const calculateStudentExamResult = ({ student, exam, subjects, markMap, absentSubjectIds = new Set() }) => {
   const fullMarksPerSubject = Number(exam?.fullMarks) || 100;
   const passMarks = Number(exam?.passMarks ?? Math.ceil(fullMarksPerSubject * 0.4));
@@ -167,7 +242,7 @@ const calculateStudentExamResult = ({ student, exam, subjects, markMap, absentSu
       percentage: round(percentage, 1),
       grade: gradeInfo?.grade || "",
       gradePoint: gradeInfo ? gradeInfo.gradePoint : null,
-      remark: gradeInfo?.remark || "Not entered",
+      remark: isAbsent ? "Absent" : gradeInfo?.remark || "--",
       passed: isAbsent ? false : obtainedMarks == null ? null : obtainedMarks >= passMarks,
       absent: isAbsent,
       passMarks,
@@ -338,15 +413,9 @@ export const getPerformanceLedger = async (req, res, next) => {
         }).select("studentId status examItemId subjectId")
       : [];
 
-    const absentMap = new Map();
-    examAttendanceRecords
-      .filter((record) => record.status === "absent")
-      .forEach((record) => {
-        const studentId = record.studentId.toString();
-        const subjectId = record.subjectId?.toString();
-        if (!absentMap.has(studentId)) absentMap.set(studentId, new Set());
-        if (subjectId) absentMap.get(studentId).add(subjectId);
-      });
+    const absentSubjectIdsByStudent = buildAbsentSubjectIdsByStudent(
+      examAttendanceRecords,
+    );
 
     const rows = currentExam
       ? students.map((student) => {
@@ -355,7 +424,9 @@ export const getPerformanceLedger = async (req, res, next) => {
             exam: currentExam,
             subjects: examSubjects,
             markMap,
-            absentSubjectIds: absentMap.get(student._id.toString()) || new Set(),
+            absentSubjectIds:
+              absentSubjectIdsByStudent.get(student._id.toString())?.get(currentExam._id.toString()) ||
+              new Set(),
           });
           const cumulative = calculateCumulativeGpa({
             student,
@@ -492,11 +563,9 @@ export const getStudentPerformanceDetail = async (req, res, next) => {
     const examAttendanceSummaryRecords = await ExamAttendance.find({
       studentId: student._id,
       ...classFilter,
-    }).select("examId status");
-    const absencesByExam = new Set(
-      examAttendanceSummaryRecords
-        .filter((record) => record.status === "absent")
-        .map((record) => record.examId.toString()),
+    }).select("examId status subjectId");
+    const absentSubjectIdsByExam = buildAbsentSubjectIdsByExam(
+      examAttendanceSummaryRecords,
     );
 
     const examResults = exams.map((exam) => {
@@ -505,7 +574,7 @@ export const getStudentPerformanceDetail = async (req, res, next) => {
         exam,
         subjects: getExamSubjects(exam, subjectsById, normalizedSubjects),
         markMap,
-        hasAbsentAttendance: absencesByExam.has(exam._id.toString()),
+        absentSubjectIds: absentSubjectIdsByExam.get(exam._id.toString()) || new Set(),
       });
       return {
         exam: normalizeExam(exam),

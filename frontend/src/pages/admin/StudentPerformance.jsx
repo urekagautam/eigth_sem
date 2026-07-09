@@ -34,14 +34,31 @@ const statusClass = (status) => {
   return "bg-gray-50 text-gray-600 border-gray-100";
 };
 
+const isFailedSubject = (subjectResult) => {
+  if (subjectResult?.passed === false) return true;
+  if (subjectResult?.passed === true) return false;
+  if (subjectResult?.obtainedMarks == null) return false;
+
+  const obtainedMarks = Number(subjectResult?.obtainedMarks);
+  const passMarks = Number(subjectResult?.passMarks ?? 0);
+  if (Number.isNaN(obtainedMarks) || Number.isNaN(passMarks)) {
+    return false;
+  }
+
+  return obtainedMarks < passMarks;
+};
+
 const subjectCellClass = (subjectResult) => {
-  if (subjectResult.obtainedMarks == null) {
+  if (subjectResult?.obtainedMarks == null) {
     return "bg-yellow-50 text-yellow-900";
   }
-  if (subjectResult.passed) {
+  if (subjectResult?.passed) {
     return "bg-emerald-50 text-emerald-800";
   }
-  return "bg-red-50 text-red-700";
+  if (isFailedSubject(subjectResult)) {
+    return "bg-red-50 text-red-700";
+  }
+  return "bg-white text-slate-700";
 };
 
 export default function StudentPerformance() {
@@ -283,7 +300,9 @@ export default function StudentPerformance() {
                             : item.subjectName}
                         </td>
                         <td className="border-t px-4 py-3 font-semibold">
-                          {formatMark(item.obtainedMarks)}/{item.fullMarks}
+                          {item.absent || item.obtainedMarks == null
+                            ? "--"
+                            : `${formatMark(item.obtainedMarks)}/${item.fullMarks}`}
                         </td>
                         <td className="border-t px-4 py-3">
                           {item.percentage == null ? "--" : `${item.percentage}%`}
@@ -566,7 +585,7 @@ export default function StudentPerformance() {
                       >
                         <div className="flex flex-col gap-1">
                           <span className="font-semibold">
-                            {row.status === "Absent" && subjectResult.obtainedMarks == null
+                            {subjectResult.absent
                               ? "Absent"
                               : formatMark(subjectResult.obtainedMarks)}
                           </span>
