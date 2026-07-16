@@ -1,178 +1,421 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  CalendarCheck,
+  ClipboardList,
+  RefreshCw,
+  Search,
+  UserCheck,
+  UserX,
+} from "lucide-react";
+import { fetchStudentAttendanceSummary } from "../../services/apiAttendance";
 
-const TERMS = ["First Term", "Second Term", "Third Term"];
-
-const generalAttendance = {
-  totalClasses: 42,
-  present: 38,
-  absent: 4,
-  percentage: 90.5,
+const cardClass = "rounded-lg border border-gray-200 bg-white p-5 shadow-sm";
+const statusClass = {
+  present: "border-green-100 bg-green-50 text-green-700",
+  absent: "border-red-100 bg-red-50 text-red-700",
 };
 
-const examAttendanceByTerm = {
-  "First Term": { totalExams: 3, present: 3, absent: 0, percentage: 100 },
-  "Second Term": { totalExams: 4, present: 3, absent: 1, percentage: 75 },
-  "Third Term": { totalExams: 2, present: 2, absent: 0, percentage: 100 },
+const metric = (value) => `${Number(value || 0).toFixed(1)}%`;
+
+const formatDate = (value) => {
+  if (!value) return "--";
+  return new Date(value).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 };
 
-function getPieCoordinates(percentage) {
-  const radius = 46;
-  const degrees = (percentage / 100) * 360;
-  const radians = ((degrees - 90) * Math.PI) / 180;
-  const x = 60 + radius * Math.cos(radians);
-  const y = 60 + radius * Math.sin(radians);
-  const largeArcFlag = percentage > 50 ? 1 : 0;
-  const sweepFlag = 1;
-  return { x, y, largeArcFlag, sweepFlag };
+function SummaryCard({ icon: Icon, label, value, detail, tone = "blue" }) {
+  const tones = {
+    blue: "bg-blue-50 text-blue-700",
+    green: "bg-green-50 text-green-700",
+    red: "bg-red-50 text-red-700",
+  };
+
+  return (
+    <div className={cardClass}>
+      <div className="flex items-start gap-4">
+        <div className={`rounded-lg p-3 ${tones[tone] || tones.blue}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+        <div>
+          <p className="text-sm text-gray-500">{label}</p>
+          <p className="mt-1 text-3xl font-bold text-gray-900">{value}</p>
+          <p className="mt-1 text-sm text-gray-500">{detail}</p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function Attendance() {
-  const [viewType, setViewType] = useState("general");
-  const [selectedTerm, setSelectedTerm] = useState(TERMS[0]);
+  const [activeTab, setActiveTab] = useState("class");
+  const [attendance, setAttendance] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [examFilter, setExamFilter] = useState("");
+  const [classDateFilter, setClassDateFilter] = useState("");
+  const [classStatusFilter, setClassStatusFilter] = useState("");
 
-  const selectedExamAttendance = useMemo(
-    () => examAttendanceByTerm[selectedTerm],
-    [selectedTerm],
+  useEffect(() => {
+    const loadAttendance = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const response = await fetchStudentAttendanceSummary();
+        setAttendance(response?.data || null);
+      } catch (err) {
+        setAttendance(null);
+        setError(err.message || "Failed to load attendance.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadAttendance();
+  }, []);
+
+  const classSummary = attendance?.classAttendance?.summary || {
+    total: 0,
+    present: 0,
+    absent: 0,
+    percentage: 0,
+  };
+  const examSummary = attendance?.examAttendance?.summary || {
+    total: 0,
+    present: 0,
+    absent: 0,
+    percentage: 0,
+  };
+
+  const examTitles = useMemo(() => {
+    const titles = new Set();
+    (attendance?.examAttendance?.records || []).forEach((record) => {
+      if (record.examTitle) titles.add(record.examTitle);
+    });
+    return [...titles];
+  }, [attendance]);
+
+  const filteredExamRecords = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return (attendance?.examAttendance?.records || []).filter((record) => {
+      if (examFilter && record.examTitle !== examFilter) return false;
+      if (!query) return true;
+      return [
+        record.examTitle,
+        record.subjectName,
+        record.subjectCode,
+        record.status,
+        record.date,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [attendance, examFilter, search]);
+
+  const classRecords = attendance?.classAttendance?.records || [];
+  const filteredClassRecords = useMemo(
+    () =>
+      classRecords.filter((record) => {
+        if (classDateFilter && record.date !== classDateFilter) return false;
+        if (classStatusFilter && record.status !== classStatusFilter) return false;
+        return true;
+      }),
+    [classDateFilter, classRecords, classStatusFilter],
   );
-
-  const presentPercentage = generalAttendance.percentage;
-  const sliceCoords = getPieCoordinates(presentPercentage);
+  const presentDash = classSummary.total
+    ? (classSummary.present / classSummary.total) * 283
+    : 0;
+  const absentDash = classSummary.total
+    ? (classSummary.absent / classSummary.total) * 283
+    : 0;
 
   return (
-    <div className="max-w-5xl space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Attendance</h1>
-        <p className="text-gray-600 mt-1">
-          View your general class attendance and exam attendance with a visual
-          summary.
-        </p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 bg-gray-200/80 rounded-xl p-2 w-fit">
-        <button
-          type="button"
-          onClick={() => setViewType("general")}
-          className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-            viewType === "general"
-              ? "bg-white text-blue-600 shadow-sm"
-              : "text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          General Attendance
-        </button>
-        <button
-          type="button"
-          onClick={() => setViewType("exam")}
-          className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-            viewType === "exam"
-              ? "bg-white text-blue-600 shadow-sm"
-              : "text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          Exam Attendance
-        </button>
-      </div>
-
-      {viewType === "general" ? (
-        <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm">
-          <div className="grid gap-6 lg:grid-cols-[280px_1fr] items-center">
-            <div className="rounded-3xl border border-gray-100 bg-slate-50 p-4 text-center">
-              <svg className="mx-auto" viewBox="0 0 120 120" width="220" height="220">
-                <circle cx="60" cy="60" r="46" fill="#eef2ff" />
-                <path
-                  d={`M60 14 A46 46 0 ${sliceCoords.largeArcFlag} ${sliceCoords.sweepFlag} ${sliceCoords.x} ${sliceCoords.y} L60 60 Z`}
-                  fill="#2563eb"
-                />
-                <circle cx="60" cy="60" r="26" fill="#ffffff" />
-                <text x="60" y="58" textAnchor="middle" className="text-2xl font-semibold fill-current" style={{ fontSize: 18, fill: "#1e3a8a" }}>
-                  {presentPercentage}%
-                </text>
-                <text x="60" y="78" textAnchor="middle" className="text-xs fill-current" style={{ fill: "#475569" }}>
-                  Present
-                </text>
-              </svg>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">General Attendance</h2>
-                <p className="text-gray-500 mt-2">A quick summary of your attended classes for the current term.</p>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="rounded-3xl border border-blue-100 bg-blue-50 p-4">
-                  <p className="text-sm text-blue-700 font-semibold">Present Days</p>
-                  <p className="mt-2 text-3xl font-bold text-blue-900">{generalAttendance.present}</p>
-                </div>
-                <div className="rounded-3xl border border-red-100 bg-red-50 p-4">
-                  <p className="text-sm text-red-700 font-semibold">Absent Days</p>
-                  <p className="mt-2 text-3xl font-bold text-red-900">{generalAttendance.absent}</p>
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-gray-100 bg-gray-50 p-4">
-                <p className="text-sm text-gray-600">Total classes</p>
-                <p className="mt-2 text-xl font-semibold text-gray-900">{generalAttendance.totalClasses}</p>
-                <p className="text-sm text-gray-500 mt-1">Your attendance ratio is shown in the chart.</p>
-              </div>
-            </div>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Attendance</h1>
+          <p className="mt-1 text-gray-600">
+            Current semester class attendance and subject-wise exam attendance.
+          </p>
+        </div>
+        {attendance?.classInfo && (
+          <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700">
+            {attendance.classInfo.facultyCode} · {attendance.classInfo.levelLabel} · Batch{" "}
+            {attendance.classInfo.batch}
           </div>
+        )}
+      </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className={cardClass}>
+          <RefreshCw className="mx-auto mb-3 h-6 w-6 animate-spin text-blue-600" />
+          <p className="text-center text-gray-600">Loading attendance...</p>
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">Exam Attendance</h2>
-              <p className="text-gray-500 mt-2">Review your exam-day attendance by term.</p>
-            </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <label className="text-sm font-semibold text-gray-700">Select Term</label>
-              <select
-                value={selectedTerm}
-                onChange={(e) => setSelectedTerm(e.target.value)}
-                className="px-4 py-3 border border-gray-300 rounded-xl bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
-              >
-                {TERMS.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
+        <>
+          <div className="grid gap-4 md:grid-cols-4">
+            <SummaryCard
+              icon={CalendarCheck}
+              label="Class attendance"
+              value={metric(classSummary.percentage)}
+              detail={`${classSummary.present}/${classSummary.total} present`}
+              tone="blue"
+            />
+            <SummaryCard
+              icon={UserCheck}
+              label="Class present"
+              value={classSummary.present}
+              detail="Teacher-marked classes"
+              tone="green"
+            />
+            <SummaryCard
+              icon={ClipboardList}
+              label="Exam attendance"
+              value={metric(examSummary.percentage)}
+              detail={`${examSummary.present}/${examSummary.total} present`}
+              tone="blue"
+            />
+            <SummaryCard
+              icon={UserX}
+              label="Exam absent"
+              value={examSummary.absent}
+              detail="Subject exam sessions"
+              tone="red"
+            />
           </div>
 
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
-            <div className="rounded-3xl border border-gray-100 bg-slate-50 p-5 text-center">
-              <p className="text-sm text-gray-500">Selected Term</p>
-              <p className="mt-2 font-semibold text-gray-900">{selectedTerm}</p>
-            </div>
-            <div className="rounded-3xl border border-blue-100 bg-blue-50 p-5 text-center">
-              <p className="text-sm text-blue-700">Present Exams</p>
-              <p className="mt-2 text-3xl font-bold text-blue-900">{selectedExamAttendance.present}</p>
-            </div>
-            <div className="rounded-3xl border border-red-100 bg-red-50 p-5 text-center">
-              <p className="text-sm text-red-700">Absent Exams</p>
-              <p className="mt-2 text-3xl font-bold text-red-900">{selectedExamAttendance.absent}</p>
-            </div>
+          <div className="flex w-fit rounded-lg bg-gray-200/80 p-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab("class")}
+              className={`rounded-md px-4 py-2 text-sm font-semibold ${
+                activeTab === "class"
+                  ? "bg-white text-blue-700 shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Class Attendance
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("exam")}
+              className={`rounded-md px-4 py-2 text-sm font-semibold ${
+                activeTab === "exam"
+                  ? "bg-white text-blue-700 shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Exam Attendance
+            </button>
           </div>
 
-          <div className="mt-8 rounded-3xl border border-gray-100 bg-gray-50 p-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Performance</p>
-                <p className="mt-2 text-2xl font-semibold text-gray-900">{selectedExamAttendance.percentage}% Present</p>
-              </div>
-              <div className="max-w-xs">
-                <div className="rounded-full bg-white border border-gray-200 overflow-hidden">
-                  <div
-                    className="h-4 bg-blue-600"
-                    style={{ width: `${selectedExamAttendance.percentage}%` }}
-                  />
+          {activeTab === "class" ? (
+            <section className={cardClass}>
+              <div className="mb-5 grid gap-5 lg:grid-cols-[260px_1fr] lg:items-center">
+                <div className="rounded-lg border border-gray-100 bg-gray-50 p-4">
+                  <div className="relative mx-auto h-44 w-44">
+                    <svg viewBox="0 0 120 120" className="h-44 w-44 -rotate-90">
+                      <circle
+                        cx="60"
+                        cy="60"
+                        r="45"
+                        fill="none"
+                        stroke="#fee2e2"
+                        strokeWidth="14"
+                      />
+                      <circle
+                        cx="60"
+                        cy="60"
+                        r="45"
+                        fill="none"
+                        stroke="#dc2626"
+                        strokeWidth="14"
+                        strokeDasharray={`${absentDash} ${283 - absentDash}`}
+                        strokeLinecap="round"
+                      />
+                      <circle
+                        cx="60"
+                        cy="60"
+                        r="45"
+                        fill="none"
+                        stroke="#16a34a"
+                        strokeWidth="14"
+                        strokeDasharray={`${presentDash} ${283 - presentDash}`}
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <p className="text-3xl font-bold text-gray-900">
+                        {metric(classSummary.percentage)}
+                      </p>
+                      <p className="text-xs font-semibold text-gray-500">Present</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                    <div className="rounded-lg bg-green-50 px-3 py-2 text-green-700">
+                      <p className="font-bold">{classSummary.present}</p>
+                      <p>Present</p>
+                    </div>
+                    <div className="rounded-lg bg-red-50 px-3 py-2 text-red-700">
+                      <p className="font-bold">{classSummary.absent}</p>
+                      <p>Absent</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Class Attendance Records</h2>
+                  <p className="text-sm text-gray-500">
+                    One class attendance is counted per date for your current semester.
+                  </p>
+                  <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+                    <input
+                      type="date"
+                      value={classDateFilter}
+                      onChange={(event) => setClassDateFilter(event.target.value)}
+                      className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    />
+                    <select
+                      value={classStatusFilter}
+                      onChange={(event) => setClassStatusFilter(event.target.value)}
+                      className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    >
+                      <option value="">All status</option>
+                      <option value="present">Present only</option>
+                      <option value="absent">Absent only</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setClassDateFilter("");
+                        setClassStatusFilter("");
+                      }}
+                      className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                    >
+                      Clear
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
+              {!classRecords.length ? (
+                <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">
+                  No class attendance records found.
+                </div>
+              ) : !filteredClassRecords.length ? (
+                <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">
+                  No class attendance records match the selected filter.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="text-xs uppercase tracking-wide text-gray-500">
+                      <tr>
+                        <th className="px-3 py-3">Date</th>
+                        <th className="px-3 py-3">Status</th>
+                        <th className="px-3 py-3">Marked by</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredClassRecords.map((record) => (
+                        <tr key={record.id} className="border-t border-gray-100">
+                          <td className="px-3 py-3 font-medium text-gray-900">
+                            {formatDate(record.date)}
+                          </td>
+                          <td className="px-3 py-3">
+                            <span
+                              className={`rounded-full border px-3 py-1 text-xs font-bold ${statusClass[record.status]}`}
+                            >
+                              {record.status === "present" ? "Present" : "Absent"}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-gray-600">
+                            {record.markedBy?.name || "--"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          ) : (
+            <section className={cardClass}>
+              <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Exam Attendance Records</h2>
+                  <p className="text-sm text-gray-500">
+                    Present and absent records are shown separately for each exam subject.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <select
+                    value={examFilter}
+                    onChange={(event) => setExamFilter(event.target.value)}
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="">All exams</option>
+                    {examTitles.map((title) => (
+                      <option key={title} value={title}>
+                        {title}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <input
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Search subject or status"
+                      className="rounded-lg border border-gray-300 py-2.5 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {!filteredExamRecords.length ? (
+                <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">
+                  No exam attendance records found.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredExamRecords.map((record) => (
+                    <div
+                      key={record.id}
+                      className="flex flex-col gap-3 rounded-lg border border-gray-200 px-4 py-3 md:flex-row md:items-center md:justify-between"
+                    >
+                      <div>
+                        <p className="font-bold text-gray-900">
+                          {record.subjectCode
+                            ? `${record.subjectCode} - ${record.subjectName}`
+                            : record.subjectName}
+                        </p>
+                        <p className="mt-1 text-sm text-gray-500">
+                          {record.examTitle} · {formatDate(record.date)}
+                        </p>
+                      </div>
+                      <span
+                        className={`w-fit rounded-full border px-4 py-1.5 text-sm font-bold ${statusClass[record.status]}`}
+                      >
+                        {record.status === "present" ? "Present" : "Absent"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+        </>
       )}
     </div>
   );

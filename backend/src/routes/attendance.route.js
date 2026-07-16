@@ -7,6 +7,7 @@ import {
   getTeacherAttendanceByDate,
   getTeacherAttendanceClass,
   getTeacherAttendanceContext,
+  getStudentAttendanceSummary,
   saveAdminExamAttendance,
   saveTeacherAttendance,
 } from "../controllers/attendance.controller.js";
@@ -15,6 +16,8 @@ import { verifyJWT } from "../middlewares/auth.middleware.js";
 const router = express.Router();
 
 router.use(verifyJWT);
+
+router.get("/student/summary", getStudentAttendanceSummary);
 
 router.get("/teacher/context", getTeacherAttendanceContext);
 router.get("/teacher/classes/:classOfferingId", getTeacherAttendanceClass);

@@ -54,7 +54,7 @@ export default function Login() {
             </div>
           </div>
 
-          <h1 className="text-center text-3xl font-bold text-gray-900 mb-2">Examify</h1>
+          <h1 className="text-center text-3xl font-bold text-gray-900 mb-2">eduPulse</h1>
           <p className="text-center text-gray-600 text-sm mb-8">Exam Management System</p>
 
           <form onSubmit={handleSubmit} className="space-y-6">

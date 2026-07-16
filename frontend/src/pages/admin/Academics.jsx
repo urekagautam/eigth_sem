@@ -1079,14 +1079,14 @@ export default function Academics() {
               className="hidden"
               onChange={handleImportStudents}
             />
-            <Button
+       {/*      <Button
               variant="outline"
               onClick={() => studentImportInputRef.current?.click()}
               disabled={importingStudents}
             >
               <Upload className="w-4 h-4 inline mr-1 text-blue-600" />
               {importingStudents ? "Importing" : "Import JSON"}
-            </Button>
+            </Button> */}
           </div>
 
           {importNotice && (
