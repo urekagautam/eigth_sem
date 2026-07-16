@@ -61,6 +61,12 @@ const examSchema = new Schema(
       min: 0,
     },
 
+    notice: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
     published: {
       type: Boolean,
       default: false,
