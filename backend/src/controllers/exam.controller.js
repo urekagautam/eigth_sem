@@ -1,6 +1,9 @@
 import mongoose from "mongoose";
+import { ClassOffering } from "../models/classOffering.model.js";
 import { Exam } from "../models/exam.model.js";
+import { ExamAttendance } from "../models/examAttendance.model.js";
 import { Faculty } from "../models/faculty.model.js";
+import { Marks } from "../models/marks.model.js";
 import { Student } from "../models/student.model.js";
 import { Subject } from "../models/subject.model.js";
 import { ApiError } from "../utils/ApiError.js";
@@ -17,6 +20,8 @@ const normalizeExam = (exam) => ({
   title: exam.title,
   createdAt: normalizeDate(exam.createdAt),
   fullMarks: exam.fullMarks,
+  passMarks: exam.passMarks,
+  notice: exam.notice || "",
   published: exam.published,
   items: (exam.items || []).map((item) => {
     const subject = item.subjectId;
@@ -42,16 +47,15 @@ const normalizeSchedule = (facultyId, faculty, level, batch, exams) => ({
 });
 
 const getLatestActiveBatch = async (facultyId, level) => {
-  const student = await Student.findOne({
+  const offering = await ClassOffering.findOne({
     facultyId,
-    current_level: Number(level),
     isActive: true,
-    academic_status: { $ne: "graduated" },
+    level: Number(level),
   })
-    .sort({ admitted_batch: -1 })
-    .select("admitted_batch");
+    .sort({ batch: -1 })
+    .select("batch");
 
-  return student?.admitted_batch ? Number(student.admitted_batch) : null;
+  return offering?.batch ? Number(offering.batch) : null;
 };
 
 export const getExamSchedules = async (req, res, next) => {
@@ -119,9 +123,24 @@ export const getExamSchedules = async (req, res, next) => {
   }
 };
 
+const studentFullName = (student) =>
+  [student?.first_name, student?.middle_name, student?.last_name]
+    .filter(Boolean)
+    .join(" ");
+
+const gradeForPercent = (percentage) => {
+  if (percentage == null) return { grade: "", remark: "" };
+  if (percentage >= 90) return { grade: "A", remark: "Outstanding" };
+  if (percentage >= 80) return { grade: "A-", remark: "Excellent" };
+  if (percentage >= 70) return { grade: "B+", remark: "Very good" };
+  if (percentage >= 60) return { grade: "B", remark: "Good" };
+  if (percentage >= 50) return { grade: "B-", remark: "Satisfactory" };
+  return { grade: "F", remark: "Fail" };
+};
+
 export const createExamSchedule = async (req, res, next) => {
   try {
-    const { title, facultyId, level, batch, fullMarks, items } = req.body;
+    const { title, facultyId, level, batch, fullMarks, passMarks, notice, items } = req.body;
 
     if (!title?.trim() || !facultyId || !level) {
       throw new ApiError(400, "Exam title, faculty, and level are required");
@@ -200,12 +219,23 @@ export const createExamSchedule = async (req, res, next) => {
       };
     });
 
+    const fullMarksValue = Number(fullMarks) || 100;
+    const passMarksValue = Number(passMarks ?? Math.ceil(fullMarksValue * 0.4));
+    if (passMarksValue < 0 || passMarksValue > fullMarksValue) {
+      throw new ApiError(
+        400,
+        "Pass marks must be between 0 and the exam full marks",
+      );
+    }
+
     const exam = await Exam.create({
       title: title.trim(),
       facultyId,
       level: selectedLevel,
       batch: selectedBatch,
-      fullMarks: Number(fullMarks) || 100,
+      fullMarks: fullMarksValue,
+      passMarks: passMarksValue,
+      notice: notice?.trim() || "",
       items: examItems,
     });
 
@@ -263,7 +293,7 @@ const buildExamItems = async ({ items, facultyId, level }) => {
 export const updateExamSchedule = async (req, res, next) => {
   try {
     const { examId } = req.params;
-    const { title, fullMarks, items } = req.body;
+    const { title, fullMarks, passMarks, notice, items } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(examId)) {
       throw new ApiError(400, "Valid exam is required");
@@ -278,8 +308,19 @@ export const updateExamSchedule = async (req, res, next) => {
     const exam = await Exam.findById(examId);
     if (!exam) throw new ApiError(404, "Exam not found");
 
+    const fullMarksValue = Number(fullMarks) || 100;
+    const passMarksValue = Number(passMarks ?? Math.ceil(fullMarksValue * 0.4));
+    if (passMarksValue < 0 || passMarksValue > fullMarksValue) {
+      throw new ApiError(
+        400,
+        "Pass marks must be between 0 and the exam full marks",
+      );
+    }
+
     exam.title = title.trim();
-    exam.fullMarks = Number(fullMarks) || 100;
+    exam.fullMarks = fullMarksValue;
+    exam.passMarks = passMarksValue;
+    exam.notice = notice?.trim() || "";
     exam.items = await buildExamItems({
       items,
       facultyId: exam.facultyId,
@@ -295,6 +336,185 @@ export const updateExamSchedule = async (req, res, next) => {
     res
       .status(200)
       .json(new ApiResponse(200, normalizeExam(populated), "Exam schedule updated successfully"));
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getStudentAcademics = async (req, res, next) => {
+  try {
+    if (req.user?.role !== "student") {
+      throw new ApiError(403, "Student access is required");
+    }
+
+    const student = await Student.findById(req.user._id).populate("facultyId");
+    if (!student) throw new ApiError(404, "Student not found");
+    const faculty = student.facultyId;
+    if (!faculty) throw new ApiError(404, "Student faculty not found");
+
+    const classFilter = {
+      facultyId: faculty._id,
+      level: Number(student.current_level),
+      batch: Number(student.admitted_batch),
+    };
+
+    const exams = await Exam.find(classFilter)
+      .populate("facultyId")
+      .populate("items.subjectId")
+      .sort({ createdAt: -1 });
+
+    const examIds = exams.map((exam) => exam._id);
+    const offerings = await ClassOffering.find(classFilter).populate("subjectId");
+    const offeringBySubject = new Map(
+      offerings.map((offering) => [
+        offering.subjectId?._id?.toString() || offering.subjectId?.toString(),
+        offering,
+      ]),
+    );
+
+    const marks = examIds.length
+      ? await Marks.find({
+          studentId: student._id,
+          examId: { $in: examIds },
+        }).populate("classOfferingId")
+      : [];
+    const markByExamSubject = new Map();
+    marks.forEach((mark) => {
+      const subjectId =
+        mark.classOfferingId?.subjectId?._id?.toString?.() ||
+        mark.classOfferingId?.subjectId?.toString?.();
+      if (!subjectId) return;
+      markByExamSubject.set(`${mark.examId.toString()}-${subjectId}`, mark);
+    });
+
+    const attendance = examIds.length
+      ? await ExamAttendance.find({
+          studentId: student._id,
+          examId: { $in: examIds },
+        })
+      : [];
+    const attendanceByExamSubject = new Map(
+      attendance.map((record) => [
+        `${record.examId.toString()}-${record.subjectId.toString()}`,
+        record,
+      ]),
+    );
+
+    const normalizedExams = exams.map((exam) => {
+      const subjects = (exam.items || []).map((item) => {
+        const subject = item.subjectId;
+        const subjectId = subject?._id?.toString() || item.subjectId?.toString();
+        const attendanceRecord = attendanceByExamSubject.get(
+          `${exam._id.toString()}-${subjectId}`,
+        );
+        const isAbsent = attendanceRecord?.status === "absent";
+        const mark = markByExamSubject.get(`${exam._id.toString()}-${subjectId}`);
+        const obtainedMarks =
+          isAbsent || mark?.obtained_marks == null
+            ? null
+            : Number(mark.obtained_marks);
+        const percentage =
+          obtainedMarks == null
+            ? null
+            : Number(((obtainedMarks / Number(exam.fullMarks || 100)) * 100).toFixed(1));
+        const gradeInfo = gradeForPercent(percentage);
+        const passed =
+          isAbsent || obtainedMarks == null
+            ? false
+            : obtainedMarks >= Number(exam.passMarks || 0);
+
+        return {
+          subjectId,
+          subjectName: subject?.subject_name || "Subject",
+          subjectCode: subject?.subject_code || "",
+          examDate: normalizeDate(item.examDate),
+          examTime: item.examTime,
+          fullMarks: Number(exam.fullMarks || 100),
+          passMarks: Number(exam.passMarks || 0),
+          obtainedMarks,
+          percentage,
+          grade: isAbsent ? "" : gradeInfo.grade,
+          remark: isAbsent
+            ? "Absent"
+            : obtainedMarks == null
+              ? "--"
+              : gradeInfo.remark,
+          status: isAbsent
+            ? "absent"
+            : obtainedMarks == null
+              ? "pending"
+              : passed
+                ? "passed"
+                : "failed",
+          attendanceStatus: attendanceRecord?.status || "not_marked",
+          classOfferingId:
+            offeringBySubject.get(subjectId)?._id?.toString() || "",
+        };
+      });
+
+      const enteredSubjects = subjects.filter((subject) => subject.obtainedMarks != null);
+      const total = enteredSubjects.reduce(
+        (sum, subject) => sum + Number(subject.obtainedMarks || 0),
+        0,
+      );
+      const fullMarks = subjects.reduce(
+        (sum, subject) => sum + Number(subject.fullMarks || 0),
+        0,
+      );
+      const complete =
+        subjects.length > 0 &&
+        enteredSubjects.length === subjects.length &&
+        subjects.every((subject) => subject.status !== "absent");
+      const percentage =
+        complete && fullMarks
+          ? Number(((total / fullMarks) * 100).toFixed(1))
+          : null;
+
+      return {
+        ...normalizeExam(exam),
+        subjects,
+        result: {
+          total,
+          fullMarks,
+          enteredSubjectCount: enteredSubjects.length,
+          subjectCount: subjects.length,
+          percentage,
+          complete,
+          status: subjects.some((subject) => subject.status === "absent")
+            ? "Absent"
+            : subjects.some((subject) => subject.status === "failed")
+              ? "Failed"
+              : complete
+                ? "Passed"
+                : "Pending",
+        },
+      };
+    });
+
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          student: {
+            id: student._id.toString(),
+            studentId: student.std_id,
+            name: studentFullName(student),
+            rollNo: student.roll_no,
+          },
+          classInfo: {
+            facultyCode: faculty.faculty_code,
+            facultyName: faculty.faculty_name,
+            level: String(student.current_level),
+            levelLabel:
+              faculty.levels?.find((item) => item.value === Number(student.current_level))
+                ?.label || `Level ${student.current_level}`,
+            batch: String(student.admitted_batch),
+          },
+          exams: normalizedExams,
+        },
+        "Student academics retrieved successfully",
+      ),
+    );
   } catch (error) {
     next(error);
   }

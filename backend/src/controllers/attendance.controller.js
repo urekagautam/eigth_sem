@@ -752,3 +752,153 @@ export const saveAdminExamAttendance = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getStudentAttendanceSummary = async (req, res, next) => {
+  try {
+    const studentId = ensureRole(req, "student");
+    const student = await Student.findById(studentId).populate("facultyId");
+    if (!student) throw new ApiError(404, "Student not found");
+
+    const faculty = student.facultyId;
+    if (!faculty) throw new ApiError(404, "Student faculty not found");
+
+    const classFilter = {
+      facultyId: faculty._id,
+      level: Number(student.current_level),
+      batch: Number(student.admitted_batch),
+    };
+
+    const classSessions = await ClassAttendanceSession.find(classFilter)
+      .populate("markedBy")
+      .sort({ date: -1, updatedAt: -1 });
+    const attendanceRecords = await Attendance.find({
+      studentId: student._id,
+      ...classFilter,
+    })
+      .populate("markedBy")
+      .sort({ date: -1, updatedAt: -1 });
+
+    const sessionDates = new Set(
+      classSessions.map((session) => session.date.toISOString().slice(0, 10)),
+    );
+    const recordByDate = new Map(
+      attendanceRecords.map((record) => [
+        record.date.toISOString().slice(0, 10),
+        record,
+      ]),
+    );
+    attendanceRecords.forEach((record) =>
+      sessionDates.add(record.date.toISOString().slice(0, 10)),
+    );
+
+    const classRecords = Array.from(sessionDates)
+      .sort((a, b) => b.localeCompare(a))
+      .map((date) => {
+        const record = recordByDate.get(date);
+        const session = classSessions.find(
+          (item) => item.date.toISOString().slice(0, 10) === date,
+        );
+        return {
+          id: record?._id?.toString() || session?._id?.toString() || date,
+          date,
+          status: record?.status || "absent",
+          markedBy: record?.markedBy
+            ? {
+                id: record.markedBy._id?.toString() || record.markedBy.toString(),
+                name: teacherFullName(record.markedBy),
+              }
+            : session?.markedBy
+              ? {
+                  id: session.markedBy._id?.toString() || session.markedBy.toString(),
+                  name: teacherFullName(session.markedBy),
+                }
+              : null,
+          updatedAt: record?.updatedAt || session?.updatedAt || null,
+        };
+      });
+
+    const classPresent = classRecords.filter((record) => record.status === "present").length;
+    const classTotal = classRecords.length;
+    const classAbsent = Math.max(classTotal - classPresent, 0);
+
+    const examAttendanceRecords = await ExamAttendance.find({
+      studentId: student._id,
+      ...classFilter,
+    })
+      .populate("examId")
+      .populate("subjectId")
+      .populate("markedBy")
+      .sort({ examDate: -1, updatedAt: -1 });
+
+    const examRecords = examAttendanceRecords.map((record) => ({
+      id: record._id.toString(),
+      examId: record.examId?._id?.toString() || record.examId?.toString(),
+      examTitle: record.examId?.title || "Exam",
+      subjectId: record.subjectId?._id?.toString() || record.subjectId?.toString(),
+      subjectName: record.subjectId?.subject_name || "Subject",
+      subjectCode: record.subjectId?.subject_code || "",
+      date: record.examDate.toISOString().slice(0, 10),
+      status: record.status,
+      markedBy: record.markedBy
+        ? {
+            id: record.markedBy._id?.toString() || record.markedBy.toString(),
+            name: record.markedBy.email || "Admin",
+          }
+        : null,
+      updatedAt: record.updatedAt,
+    }));
+
+    const examPresent = examRecords.filter((record) => record.status === "present").length;
+    const examTotal = examRecords.length;
+    const examAbsent = Math.max(examTotal - examPresent, 0);
+
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          student: {
+            id: student._id.toString(),
+            studentId: student.std_id,
+            name: studentFullName(student),
+            rollNo: student.roll_no,
+          },
+          classInfo: {
+            facultyId: faculty._id.toString(),
+            facultyCode: faculty.faculty_code,
+            facultyName: faculty.faculty_name,
+            level: String(student.current_level),
+            levelLabel:
+              faculty.levels?.find((item) => item.value === Number(student.current_level))
+                ?.label || `Level ${student.current_level}`,
+            batch: String(student.admitted_batch),
+          },
+          classAttendance: {
+            summary: {
+              total: classTotal,
+              present: classPresent,
+              absent: classAbsent,
+              percentage: classTotal
+                ? Number(((classPresent / classTotal) * 100).toFixed(1))
+                : 0,
+            },
+            records: classRecords,
+          },
+          examAttendance: {
+            summary: {
+              total: examTotal,
+              present: examPresent,
+              absent: examAbsent,
+              percentage: examTotal
+                ? Number(((examPresent / examTotal) * 100).toFixed(1))
+                : 0,
+            },
+            records: examRecords,
+          },
+        },
+        "Student attendance summary retrieved successfully",
+      ),
+    );
+  } catch (error) {
+    next(error);
+  }
+};

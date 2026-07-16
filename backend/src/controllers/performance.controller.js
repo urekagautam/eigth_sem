@@ -10,6 +10,10 @@ import { Quiz } from "../models/quiz.model.js";
 import { QuizSubmission } from "../models/quizSubmission.model.js";
 import { Student } from "../models/student.model.js";
 import { Subject } from "../models/subject.model.js";
+import {
+  buildLabelledPerformanceDataset,
+  getStudentPerformancePrediction,
+} from "../ml/performancePrediction.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
@@ -138,12 +142,93 @@ const getExamSubjects = (exam, subjectsById, fallbackSubjects) => {
   return fromRoutine.length ? fromRoutine : fallbackSubjects;
 };
 
-const calculateStudentExamResult = ({ student, exam, subjects, markMap }) => {
+export const buildAbsentSubjectIdsByStudent = (records = []) => {
+  const byStudent = new Map();
+  const statusBySubject = new Map();
+
+  records.forEach((record) => {
+    const studentId = record.studentId?.toString?.() || record.studentId;
+    const examId = record.examId?.toString?.() || record.examId;
+    const subjectId = record.subjectId?.toString?.() || record.subjectId;
+
+    if (!studentId || !examId || !subjectId) return;
+
+    const key = `${studentId}-${examId}-${subjectId}`;
+    const current = statusBySubject.get(key);
+    if (!current || record.status === "present") {
+      statusBySubject.set(key, {
+        studentId,
+        examId,
+        subjectId,
+        status: record.status,
+      });
+    }
+  });
+
+  statusBySubject.forEach((record) => {
+    if (record.status !== "absent") return;
+
+    if (!byStudent.has(record.studentId)) {
+      byStudent.set(record.studentId, new Map());
+    }
+
+    const byExam = byStudent.get(record.studentId);
+    if (!byExam.has(record.examId)) {
+      byExam.set(record.examId, new Set());
+    }
+
+    byExam.get(record.examId).add(record.subjectId);
+  });
+
+  return byStudent;
+};
+
+export const buildAbsentSubjectIdsByExam = (records = []) => {
+  const byExam = new Map();
+  const statusBySubject = new Map();
+
+  records.forEach((record) => {
+    const examId = record.examId?.toString?.() || record.examId;
+    const subjectId = record.subjectId?.toString?.() || record.subjectId;
+
+    if (!examId || !subjectId) return;
+
+    const key = `${examId}-${subjectId}`;
+    const current = statusBySubject.get(key);
+    if (!current || record.status === "present") {
+      statusBySubject.set(key, {
+        examId,
+        subjectId,
+        status: record.status,
+      });
+    }
+  });
+
+  statusBySubject.forEach((record) => {
+    if (record.status !== "absent") return;
+
+    if (!byExam.has(record.examId)) {
+      byExam.set(record.examId, new Set());
+    }
+
+    byExam.get(record.examId).add(record.subjectId);
+  });
+
+  return byExam;
+};
+
+const calculateStudentExamResult = ({ student, exam, subjects, markMap, absentSubjectIds = new Set() }) => {
   const fullMarksPerSubject = Number(exam?.fullMarks) || 100;
+  const passMarks = Number(exam?.passMarks ?? Math.ceil(fullMarksPerSubject * 0.4));
   const subjectResults = subjects.map((subject) => {
+    const subjectId = subject._id.toString();
+    const isAbsent = absentSubjectIds.has(subjectId);
     const mark = markMap.get(`${exam._id.toString()}-${student._id.toString()}-${subject._id}`);
-    const obtainedMarks =
-      mark?.obtained_marks == null ? null : Number(mark.obtained_marks);
+    const obtainedMarks = isAbsent
+      ? null
+      : mark?.obtained_marks == null
+        ? null
+        : Number(mark.obtained_marks);
     const percentage =
       obtainedMarks == null ? null : (obtainedMarks / fullMarksPerSubject) * 100;
     const gradeInfo = percentage == null ? null : getGrade(percentage);
@@ -157,8 +242,10 @@ const calculateStudentExamResult = ({ student, exam, subjects, markMap }) => {
       percentage: round(percentage, 1),
       grade: gradeInfo?.grade || "",
       gradePoint: gradeInfo ? gradeInfo.gradePoint : null,
-      remark: gradeInfo?.remark || "Not entered",
-      passed: gradeInfo ? gradeInfo.grade !== "F" : null,
+      remark: isAbsent ? "Absent" : gradeInfo?.remark || "--",
+      passed: isAbsent ? false : obtainedMarks == null ? null : obtainedMarks >= passMarks,
+      absent: isAbsent,
+      passMarks,
     };
   });
 
@@ -173,7 +260,26 @@ const calculateStudentExamResult = ({ student, exam, subjects, markMap }) => {
     ? enteredSubjects.reduce((sum, item) => sum + item.gradePoint, 0) /
       enteredSubjects.length
     : null;
-  const failed = enteredSubjects.some((item) => item.passed === false);
+  const hasAbsent = subjectResults.some((item) => item.absent);
+  const hasFail = subjectResults.some((item) => item.passed === false && !item.absent);
+  const failed = hasFail || hasAbsent;
+
+  let status = "";
+  if (!enteredSubjects.length && hasAbsent) {
+    status = "Absent";
+  } else if (!enteredSubjects.length) {
+    status = "No marks";
+  } else if (!complete) {
+    status = "Incomplete";
+  } else if (hasFail && hasAbsent) {
+    status = "Failed & Absent";
+  } else if (hasAbsent) {
+    status = "Absent";
+  } else if (hasFail) {
+    status = "Failed";
+  } else {
+    status = "Passed";
+  }
 
   return {
     student: normalizeStudent(student, exam.facultyId),
@@ -185,13 +291,7 @@ const calculateStudentExamResult = ({ student, exam, subjects, markMap }) => {
     missingSubjectCount: subjectResults.length - enteredSubjects.length,
     percentage: round(percentage, 1),
     gpa: round(gpa),
-    status: !enteredSubjects.length
-      ? "No marks"
-      : !complete
-        ? "Incomplete"
-        : failed
-          ? "Failed"
-          : "Passed",
+    status,
     complete,
     failed,
   };
@@ -214,23 +314,25 @@ const calculateCumulativeGpa = ({ student, exams, subjectsById, fallbackSubjects
 
 const applyRanks = (rows) => {
   const rankedRows = rows
-    .filter((row) => row.complete && row.gpa != null)
-    .sort((a, b) => b.gpa - a.gpa || b.total - a.total);
+    .filter((row) => row.status === "Passed" && row.complete && row.gpa != null)
+    .sort((a, b) => (b.gpa ?? 0) - (a.gpa ?? 0) || b.total - a.total);
 
   let rank = 0;
   let previousKey = "";
   const rankMap = new Map();
   rankedRows.forEach((row, index) => {
-    const key = `${row.gpa}-${row.total}`;
+    const key = `${row.gpa ?? 0}-${row.total}`;
     if (key !== previousKey) rank = index + 1;
     previousKey = key;
     rankMap.set(row.student._id, rank);
   });
 
-  return rows.map((row) => ({
-    ...row,
-    rank: rankMap.get(row.student._id) || "-",
-  }));
+  return rows
+    .map((row) => ({
+      ...row,
+      rank: rankMap.get(row.student._id) || "-",
+    }))
+    .sort((a, b) => a.student.name.localeCompare(b.student.name));
 };
 
 export const getPerformanceLedger = async (req, res, next) => {
@@ -249,28 +351,36 @@ export const getPerformanceLedger = async (req, res, next) => {
     if (!faculty) throw new ApiError(404, "Faculty not found");
 
     const selectedLevel = Number(level);
-    const activeStudentsForLevel = await Student.find({
+    const activeClassOfferings = await ClassOffering.find({
       facultyId,
-      current_level: selectedLevel,
+      level: selectedLevel,
       isActive: true,
-      academic_status: { $ne: "graduated" },
-    }).sort({ roll_no: 1, std_id: 1 });
+    }).select("batch");
 
     const activeBatches = Array.from(
       new Set(
-        activeStudentsForLevel
-          .map((student) => Number(student.admitted_batch))
+        activeClassOfferings
+          .map((offering) => Number(offering.batch))
           .filter(Boolean),
       ),
     )
       .sort((a, b) => b - a)
+      .slice(0, 1)
       .map(String);
 
-    const selectedBatch = batch || activeBatches[0] || "";
+    const requestedBatch = batch ? String(batch) : "";
+    const selectedBatch =
+      requestedBatch && activeBatches.includes(requestedBatch)
+        ? requestedBatch
+        : activeBatches[0] || "";
     const students = selectedBatch
-      ? activeStudentsForLevel.filter(
-          (student) => String(student.admitted_batch) === String(selectedBatch),
-        )
+      ? await Student.find({
+          facultyId,
+          current_level: selectedLevel,
+          admitted_batch: Number(selectedBatch),
+          isActive: true,
+          academic_status: { $ne: "graduated" },
+        }).sort({ roll_no: 1, std_id: 1 })
       : [];
 
     const subjects = await Subject.find({
@@ -304,6 +414,17 @@ export const getPerformanceLedger = async (req, res, next) => {
     const studentIds = students.map((student) => student._id);
     const markMap = await buildMarkMap(examIds, studentIds);
 
+    const examAttendanceRecords = currentExam
+      ? await ExamAttendance.find({
+          examId: currentExam._id,
+          studentId: { $in: studentIds },
+        }).select("studentId status examItemId subjectId")
+      : [];
+
+    const absentSubjectIdsByStudent = buildAbsentSubjectIdsByStudent(
+      examAttendanceRecords,
+    );
+
     const rows = currentExam
       ? students.map((student) => {
           const result = calculateStudentExamResult({
@@ -311,6 +432,9 @@ export const getPerformanceLedger = async (req, res, next) => {
             exam: currentExam,
             subjects: examSubjects,
             markMap,
+            absentSubjectIds:
+              absentSubjectIdsByStudent.get(student._id.toString())?.get(currentExam._id.toString()) ||
+              new Set(),
           });
           const cumulative = calculateCumulativeGpa({
             student,
@@ -444,12 +568,21 @@ export const getStudentPerformanceDetail = async (req, res, next) => {
       [student._id],
     );
 
+    const examAttendanceSummaryRecords = await ExamAttendance.find({
+      studentId: student._id,
+      ...classFilter,
+    }).select("examId status subjectId");
+    const absentSubjectIdsByExam = buildAbsentSubjectIdsByExam(
+      examAttendanceSummaryRecords,
+    );
+
     const examResults = exams.map((exam) => {
       const result = calculateStudentExamResult({
         student,
         exam,
         subjects: getExamSubjects(exam, subjectsById, normalizedSubjects),
         markMap,
+        absentSubjectIds: absentSubjectIdsByExam.get(exam._id.toString()) || new Set(),
       });
       return {
         exam: normalizeExam(exam),
@@ -550,6 +683,7 @@ export const getStudentPerformanceDetail = async (req, res, next) => {
       fallbackSubjects: normalizedSubjects,
       markMap,
     });
+    const prediction = await getStudentPerformancePrediction(student._id);
 
     res.status(200).json(
       new ApiResponse(
@@ -612,8 +746,28 @@ export const getStudentPerformanceDetail = async (req, res, next) => {
             cumulativeGpa: cumulative.cumulativeGpa,
             termCount: cumulative.termCount,
           },
+          prediction,
         },
         "Student performance detail retrieved successfully",
+      ),
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getPerformanceDataset = async (req, res, next) => {
+  try {
+    const rows = await buildLabelledPerformanceDataset(req.query);
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          generatedAt: new Date(),
+          rowCount: rows.length,
+          rows,
+        },
+        "Labelled performance dataset generated successfully",
       ),
     );
   } catch (error) {

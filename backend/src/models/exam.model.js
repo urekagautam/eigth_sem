@@ -54,6 +54,19 @@ const examSchema = new Schema(
       min: 1,
     },
 
+    passMarks: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: 0,
+    },
+
+    notice: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
     published: {
       type: Boolean,
       default: false,

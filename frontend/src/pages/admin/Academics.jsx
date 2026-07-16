@@ -481,13 +481,23 @@ export default function Academics() {
   const batchOptions = useMemo(() => {
     const batches = new Set();
     students.forEach((student) => {
-      if (student.admission?.batch) {
+      if (
+        filterFacultyId &&
+        filterLevel &&
+        student.enrollment?.status === "active" &&
+        student.admission?.facultyId === filterFacultyId &&
+        String(student.enrollment?.currentLevel) === String(filterLevel) &&
+        student.admission?.batch
+      ) {
         batches.add(String(student.admission.batch));
       }
     });
     return Array.from(batches).sort((a, b) => Number(b) - Number(a));
-  }, [students]);
-  const selectedFilterBatch = filterBatch || batchOptions[0] || "";
+  }, [students, filterFacultyId, filterLevel]);
+  const selectedFilterBatch =
+    filterBatch && batchOptions.includes(String(filterBatch))
+      ? filterBatch
+      : batchOptions[0] || "";
 
   const getTeacherAssignedSubjects = (teacher) => {
     return (teacher.assignedSubjects || []).map((subject) => ({
@@ -1044,20 +1054,12 @@ export default function Academics() {
               </select>
             </div>
             <div className="flex-1 min-w-45">
-              <label className={labelClass}>Batch</label>
-              <select
-                className={selectClass}
-                value={selectedFilterBatch}
-                onChange={(e) => setFilterBatch(e.target.value)}
-                disabled={!filterFacultyId || !filterLevel}
-              >
-                <option value="">Select batch</option>
-                {batchOptions.map((batch) => (
-                  <option key={batch} value={batch}>
-                    Batch {batch}
-                  </option>
-                ))}
-              </select>
+              <label className={labelClass}>Current batch</label>
+              <input
+                className={`${inputClass} bg-gray-50 text-gray-600`}
+                value={selectedFilterBatch ? `Batch ${selectedFilterBatch}` : "Auto selected"}
+                readOnly
+              />
             </div>
             <Button
               variant="primary"
@@ -1077,14 +1079,14 @@ export default function Academics() {
               className="hidden"
               onChange={handleImportStudents}
             />
-            <Button
+       {/*      <Button
               variant="outline"
               onClick={() => studentImportInputRef.current?.click()}
               disabled={importingStudents}
             >
               <Upload className="w-4 h-4 inline mr-1 text-blue-600" />
               {importingStudents ? "Importing" : "Import JSON"}
-            </Button>
+            </Button> */}
           </div>
 
           {importNotice && (
@@ -1152,13 +1154,13 @@ export default function Academics() {
             {!filterFacultyId || !filterLevel ? (
               <div className="text-center py-12 bg-white border border-gray-200 rounded-lg">
                 <p className="text-gray-600">
-                  Please select the respective faculty and sem/year to choose a batch.
+                  Please select the respective faculty and sem/year to view the current batch.
                 </p>
               </div>
             ) : !selectedFilterBatch ? (
               <div className="text-center py-12 bg-white border border-gray-200 rounded-lg">
                 <p className="text-gray-600">
-                  Please select a batch to see students from only that batch.
+                  No current active batch was found for this faculty and sem/year.
                 </p>
               </div>
             ) : filteredStudents.length === 0 ? (

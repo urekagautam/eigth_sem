@@ -7,6 +7,7 @@ import {
   ClipboardList,
   FileQuestion,
   GraduationCap,
+  TrendingUp,
   RefreshCw,
   User,
 } from "lucide-react";
@@ -44,15 +45,24 @@ function StatCard({ icon: Icon, label, value, detail }) {
 }
 
 function statusClass(status) {
-  if (status === "present" || status === "submitted" || status === "Passed") {
+  const normalized = String(status || "").toLowerCase();
+  if (normalized === "present" || normalized === "submitted" || normalized === "passed") {
     return "border-green-100 bg-green-50 text-green-700";
   }
-  if (status === "absent" || status === "Failed") {
+  if (normalized === "absent" || normalized === "failed") {
     return "border-red-100 bg-red-50 text-red-700";
   }
-  if (status === "Incomplete" || status === "pending") {
+  if (normalized === "incomplete" || normalized === "pending") {
     return "border-yellow-100 bg-yellow-50 text-yellow-800";
   }
+  return "border-gray-100 bg-gray-50 text-gray-600";
+}
+
+function riskClass(color) {
+  if (color === "red") return "border-red-100 bg-red-50 text-red-700";
+  if (color === "yellow") return "border-yellow-100 bg-yellow-50 text-yellow-800";
+  if (color === "blue") return "border-blue-100 bg-blue-50 text-blue-700";
+  if (color === "green") return "border-green-100 bg-green-50 text-green-700";
   return "border-gray-100 bg-gray-50 text-gray-600";
 }
 
@@ -124,6 +134,7 @@ export default function StudentPerformanceDetail() {
   }
 
   const { student, attendance, examAttendance, quizzes } = detail;
+  const prediction = detail.prediction;
   const selectedExam = detail.exams.find(
     (exam) => exam.exam.id === selectedExamId,
   );
@@ -222,6 +233,76 @@ export default function StudentPerformanceDetail() {
       </div>
 
       <section className={cardClass}>
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg bg-blue-50 p-2 text-blue-600">
+              <TrendingUp className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">
+                Final Exam Prediction
+              </h2>
+              <p className="mt-1 text-sm text-gray-600">
+                Based on current semester marks, attendance, quiz score, and weighted exam priority.
+              </p>
+            </div>
+          </div>
+
+          {prediction?.available ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-2xl font-bold text-gray-900">
+                {percentText(prediction.predictedFinalPercent)}
+              </span>
+              <span
+                className={`rounded-full border px-4 py-2 text-sm font-bold ${riskClass(
+                  prediction.riskCategory?.color,
+                )}`}
+              >
+                {prediction.riskCategory?.label || "Unavailable"}
+              </span>
+            </div>
+          ) : (
+            <span className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-600">
+              Not enough data
+            </span>
+          )}
+        </div>
+
+        {prediction?.available ? (
+          <>
+            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {[
+                ["Class attendance", prediction.features?.classAttendancePercent],
+                ["Weighted exam attendance", prediction.features?.weightedExamAttendanceScore],
+                ["Weighted exam marks", prediction.features?.weightedExamPercent],
+                ["Quiz score", prediction.features?.quizPercent],
+              ].map(([label, value]) => (
+                <div
+                  key={label}
+                  className="rounded-lg border border-gray-200 bg-gray-50 p-4"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    {label}
+                  </p>
+                  <p className="mt-2 text-lg font-bold text-gray-900">
+                    {percentText(value)}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-4 text-xs text-gray-500">
+              {prediction.algorithm} · {prediction.trainedSampleCount || 0} labelled rows ·{" "}
+              {prediction.note}
+            </p>
+          </>
+        ) : (
+          <div className={emptyClass}>
+            Prediction will appear after enough current semester marks, attendance, and quiz data exist.
+          </div>
+        )}
+      </section>
+
+      <section className={cardClass}>
         <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <BookOpen className="h-5 w-5 text-blue-600" />
@@ -281,12 +362,16 @@ export default function StudentPerformanceDetail() {
                               : subject.subjectName}
                           </td>
                           <td className="px-4 py-3">
-                            {subject.obtainedMarks == null
-                              ? "--"
-                              : `${subject.obtainedMarks}/${subject.fullMarks}`}
+                            {subject.absent
+                              ? "Absent"
+                              : subject.obtainedMarks == null
+                                ? "--"
+                                : `${subject.obtainedMarks}/${subject.fullMarks}`}
                           </td>
-                          <td className="px-4 py-3">{percentText(subject.percentage)}</td>
-                          <td className="px-4 py-3">{formatValue(subject.grade)}</td>
+                          <td className="px-4 py-3">
+                            {subject.absent ? "--" : percentText(subject.percentage)}
+                          </td>
+                          <td className="px-4 py-3">{subject.absent ? "--" : formatValue(subject.grade)}</td>
                         </tr>
                       ))}
                     </tbody>

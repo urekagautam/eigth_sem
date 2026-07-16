@@ -32,6 +32,14 @@ export const fetchTeacherAttendanceContext = async () => {
   return handleResponse(response);
 };
 
+export const fetchStudentAttendanceSummary = async () => {
+  const response = await fetch(`${ATTENDANCE_API_URL}/student/summary`, {
+    method: "GET",
+    headers: getHeaders(),
+  });
+  return handleResponse(response);
+};
+
 export const fetchTeacherAttendanceClass = async (classOfferingId) => {
   const response = await fetch(
     `${ATTENDANCE_API_URL}/teacher/classes/${classOfferingId}`,

@@ -32,6 +32,14 @@ export const fetchExamSchedules = async ({ facultyId, level, batch } = {}) => {
   return handleResponse(response);
 };
 
+export const fetchStudentAcademics = async () => {
+  const response = await fetch(`${EXAMS_API_URL}/student/academics`, {
+    method: "GET",
+    headers: getHeaders(),
+  });
+  return handleResponse(response);
+};
+
 export const createExamRoutine = async (exam) => {
   const response = await fetch(EXAMS_API_URL, {
     method: "POST",

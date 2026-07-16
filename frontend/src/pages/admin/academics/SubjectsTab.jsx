@@ -105,7 +105,10 @@ export default function SubjectsTab({
     });
     return Array.from(batches).sort((a, b) => Number(b) - Number(a));
   }, [activeStudentsForAssignments, subjectFacultyId, subjectLevel]);
-  const selectedSubjectBatch = subjectBatch || batchOptions[0] || "";
+  const selectedSubjectBatch =
+    subjectBatch && batchOptions.includes(String(subjectBatch))
+      ? subjectBatch
+      : batchOptions[0] || "";
 
   useEffect(() => {
     const loadSubjects = async () => {
@@ -485,28 +488,18 @@ export default function SubjectsTab({
                 <h3 className="mb-4 font-bold text-gray-900">
                   Teacher assignments
                 </h3>
-                <Field label="Batch">
-                  <select
-                    className={selectClass}
-                    value={selectedSubjectBatch}
-                    onChange={(e) => {
-                      setSubjectBatch(e.target.value);
-                      setNotice({ type: "", message: "" });
-                    }}
-                  >
-                    <option value="">Select batch</option>
-                    {batchOptions.map((batch) => (
-                      <option key={batch} value={batch}>
-                        Batch {batch}
-                      </option>
-                    ))}
-                  </select>
+                <Field label="Current batch">
+                  <input
+                    className={`${inputClass} bg-gray-50 text-gray-600`}
+                    value={selectedSubjectBatch ? `Batch ${selectedSubjectBatch}` : "Auto selected"}
+                    readOnly
+                  />
                 </Field>
               </div>
 
               {!selectedSubjectBatch ? (
                 <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 py-10 text-center text-gray-600">
-                  Select a batch to view and assign teachers for these subjects.
+                  No current active batch was found for this faculty and sem/year.
                 </div>
               ) : (
                 subjects.map((sub) => (

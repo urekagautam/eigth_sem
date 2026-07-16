@@ -104,6 +104,8 @@ export default function ExamScheduleTab() {
     title: "",
     isCustom: false,
     fullMarks: 100,
+    passMarks: 40,
+    notice: "",
     items: [],
   });
 
@@ -197,6 +199,8 @@ export default function ExamScheduleTab() {
       title: "",
       isCustom: false,
       fullMarks: 100,
+      passMarks: 40,
+      notice: "",
       items: buildSubjectRows(subjects),
     });
     setFormError("");
@@ -209,6 +213,8 @@ export default function ExamScheduleTab() {
       title: "",
       isCustom: false,
       fullMarks: 100,
+      passMarks: 40,
+      notice: "",
       items: buildSubjectRows(subjects),
     });
     setFormError("");
@@ -221,6 +227,8 @@ export default function ExamScheduleTab() {
       title: exam.title || "",
       isCustom: !EXAM_TEMPLATES.includes(exam.title),
       fullMarks: exam.fullMarks || 100,
+      passMarks: exam.passMarks ?? 40,
+      notice: exam.notice || "",
       items: buildSubjectRows(subjects, exam),
     });
     setFormError("");
@@ -262,13 +270,22 @@ export default function ExamScheduleTab() {
       return;
     }
 
+    const fullMarksValue = Number(examForm.fullMarks) || 100;
+    const passMarksValue = Number(examForm.passMarks) || 0;
+    if (passMarksValue < 0 || passMarksValue > fullMarksValue) {
+      setFormError("Pass marks must be between 0 and full marks.");
+      return;
+    }
+
     try {
       const payload = {
         title: examForm.title.trim(),
         facultyId: selectedFacultyId,
         level: selectedLevel,
         batch: selectedExamBatch,
-        fullMarks: Number(examForm.fullMarks) || 100,
+        fullMarks: fullMarksValue,
+        passMarks: passMarksValue,
+        notice: examForm.notice.trim(),
         items: cleanItems.map((item) => ({
           subjectId: item.subjectId,
           date: item.date,
@@ -420,6 +437,11 @@ export default function ExamScheduleTab() {
                         {exam.fullMarks ?? 100} |{" "}
                         {exam.published ? "Published" : "Not published"}
                       </p>
+                      {exam.notice && (
+                        <p className="mt-1 text-xs font-medium text-blue-700">
+                          Note: {exam.notice}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
@@ -562,6 +584,40 @@ export default function ExamScheduleTab() {
                         fullMarks: Number(event.target.value) || 100,
                       }))
                     }
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Pass marks</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max={examForm.fullMarks}
+                    value={examForm.passMarks}
+                    onChange={(event) =>
+                      setExamForm((form) => ({
+                        ...form,
+                        passMarks: Number(event.target.value) || 0,
+                      }))
+                    }
+                    className={inputClass}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Pass marks must be between 0 and full marks.
+                  </p>
+                </div>
+                <div className="md:col-span-2">
+                  <label className={labelClass}>Notice for students</label>
+                  <textarea
+                    value={examForm.notice}
+                    onChange={(event) =>
+                      setExamForm((form) => ({
+                        ...form,
+                        notice: event.target.value,
+                      }))
+                    }
+                    rows={3}
+                    placeholder="Optional note shown to students with the exam routine..."
                     className={inputClass}
                   />
                 </div>
